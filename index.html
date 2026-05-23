@@ -81,6 +81,14 @@ body.viewer-open {
   overflow: hidden;
 }
 
+body.is-mobile-performance .panel {
+  backdrop-filter: none;
+}
+
+body.is-mobile-performance .holo-card {
+  filter: drop-shadow(0 18px 32px rgba(0, 0, 0, 0.38));
+}
+
 button,
 select,
 input {
@@ -784,6 +792,28 @@ input[type="range"] {
   aspect-ratio: var(--card-aspect-ratio);
 }
 
+.viewer.is-mobile-performance {
+  background: #02030a;
+}
+
+.viewer.is-mobile-performance .viewer-glow,
+.viewer.is-mobile-performance .foil::after {
+  display: none;
+}
+
+.viewer.is-mobile-performance .holo-card {
+  filter: drop-shadow(0 18px 32px rgba(0, 0, 0, 0.38));
+}
+
+.viewer.is-mobile-performance .foil {
+  will-change: opacity;
+}
+
+.viewer.is-mobile-performance .foil-texture,
+.viewer.is-mobile-performance .foil-sparkles {
+  animation-duration: 5200ms;
+}
+
 @keyframes glitterJitter {
   0%, 100% { filter: brightness(0.86); }
   50% { filter: brightness(1.55); }
@@ -1010,6 +1040,11 @@ input[type="range"] {
   ];
   const cards = [previewCard, fullCard];
   const images = [previewImage, fullImage];
+  const MAX_DISPLAY_IMAGE_EDGE = 1800;
+  const DISPLAY_IMAGE_QUALITY = 0.86;
+  const MOBILE_RENDER_FRAME_INTERVAL = 1000 / 30;
+  const DESKTOP_RENDER_FRAME_INTERVAL = 1000 / 60;
+  const mobilePerformanceQuery = window.matchMedia?.('(pointer: coarse), (max-width: 760px)');
 
   const sampleSvg = `
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 630 880">
@@ -1053,6 +1088,7 @@ input[type="range"] {
   let lastPreviewPointerAt = 0;
   let orientationDetected = false;
   let fullscreenCloseInProgress = false;
+  let imageLoadToken = 0;
 
   const target = { x: 0, y: 0, sparkle: 0 };
   const current = { x: 0, y: 0, sparkle: 0 };
@@ -1143,7 +1179,62 @@ input[type="range"] {
     }
   }
 
-  function loadFile(file) {
+  function shouldResizeRasterFile(file) {
+    return ['image/jpeg', 'image/png', 'image/webp'].includes(file.type);
+  }
+
+  async function createDisplayImageUrl(file) {
+    if (!shouldResizeRasterFile(file) || typeof createImageBitmap !== 'function') {
+      return URL.createObjectURL(file);
+    }
+
+    let bitmap;
+
+    try {
+      bitmap = await createImageBitmap(file, { imageOrientation: 'from-image' });
+    } catch (error) {
+      try {
+        bitmap = await createImageBitmap(file);
+      } catch (fallbackError) {
+        console.warn('Image decode optimization failed:', fallbackError);
+        return URL.createObjectURL(file);
+      }
+    }
+
+    const sourceEdge = Math.max(bitmap.width, bitmap.height);
+
+    if (sourceEdge <= MAX_DISPLAY_IMAGE_EDGE) {
+      bitmap.close?.();
+      return URL.createObjectURL(file);
+    }
+
+    const scale = MAX_DISPLAY_IMAGE_EDGE / sourceEdge;
+    const width = Math.max(1, Math.round(bitmap.width * scale));
+    const height = Math.max(1, Math.round(bitmap.height * scale));
+    const canvas = document.createElement('canvas');
+    const context = canvas.getContext('2d', { alpha: file.type === 'image/png' });
+
+    if (!context) {
+      bitmap.close?.();
+      return URL.createObjectURL(file);
+    }
+
+    canvas.width = width;
+    canvas.height = height;
+    context.imageSmoothingEnabled = true;
+    context.imageSmoothingQuality = 'high';
+    context.drawImage(bitmap, 0, 0, width, height);
+    bitmap.close?.();
+
+    const outputType = file.type === 'image/png' ? 'image/png' : 'image/jpeg';
+    const blob = await new Promise((resolve) => {
+      canvas.toBlob(resolve, outputType, DISPLAY_IMAGE_QUALITY);
+    });
+
+    return URL.createObjectURL(blob || file);
+  }
+
+  async function loadFile(file) {
     if (!file) return;
 
     if (!file.type.startsWith('image/')) {
@@ -1151,9 +1242,26 @@ input[type="range"] {
       return;
     }
 
+    const loadToken = ++imageLoadToken;
+    setStatus('画像を表示用に最適化しています。');
+
+    let nextUrl;
+
+    try {
+      nextUrl = await createDisplayImageUrl(file);
+    } catch (error) {
+      console.warn('Image optimization failed:', error);
+      nextUrl = URL.createObjectURL(file);
+    }
+
+    if (loadToken !== imageLoadToken) {
+      URL.revokeObjectURL(nextUrl);
+      return;
+    }
+
     revokeCurrentObjectUrl();
-    currentObjectUrl = URL.createObjectURL(file);
-    loadImageUrl(currentObjectUrl);
+    currentObjectUrl = nextUrl;
+    loadImageUrl(nextUrl);
     fileName.textContent = `${file.name} / ${(file.size / 1024 / 1024).toFixed(2)} MB`;
     setStatus('画像を読み込みました。エフェクトを選び、実行ボタンで全画面表示できます。');
   }
@@ -1267,6 +1375,20 @@ input[type="range"] {
       y: (Math.cos(seconds * 0.54 + 0.4) * 0.14 + Math.sin(seconds * 0.91) * 0.05) * amplitude,
       sparkle: 0.12 + (Math.sin(seconds * 1.8) + 1) * 0.05,
     };
+  }
+
+  function shouldUseMobilePerformanceMode() {
+    return Boolean(mobilePerformanceQuery?.matches);
+  }
+
+  function getRenderFrameInterval() {
+    return shouldUseMobilePerformanceMode() ? MOBILE_RENDER_FRAME_INTERVAL : DESKTOP_RENDER_FRAME_INTERVAL;
+  }
+
+  function syncPerformanceMode() {
+    const isMobilePerformance = shouldUseMobilePerformanceMode();
+    document.body.classList.toggle('is-mobile-performance', isMobilePerformance);
+    viewer.classList.toggle('is-mobile-performance', isMobilePerformance);
   }
 
   function setCardPose(card, x, y, sparkle = 0, options = {}) {
@@ -1408,11 +1530,20 @@ input[type="range"] {
 
   function startRenderLoop() {
     if (rafId) cancelAnimationFrame(rafId);
+    let lastFrameAt = 0;
 
     const render = () => {
       if (!active) return;
 
       const now = performance.now();
+      const frameInterval = getRenderFrameInterval();
+
+      if (lastFrameAt && now - lastFrameAt < frameInterval) {
+        rafId = requestAnimationFrame(render);
+        return;
+      }
+
+      lastFrameAt = now;
       const ambientMotion = computeAmbientMotion(now, 1);
 
       current.x = lerp(current.x, target.x, 0.13);
@@ -1433,9 +1564,18 @@ input[type="range"] {
 
   function startPreviewIdleLoop() {
     if (previewRafId) cancelAnimationFrame(previewRafId);
+    let lastFrameAt = 0;
 
     const render = () => {
       const now = performance.now();
+      const frameInterval = getRenderFrameInterval();
+
+      if (lastFrameAt && now - lastFrameAt < frameInterval) {
+        previewRafId = requestAnimationFrame(render);
+        return;
+      }
+
+      lastFrameAt = now;
       const pointerRecentlyUpdated = now - lastPreviewPointerAt < 1100;
 
       if (!pointerRecentlyUpdated && !active) {
@@ -1474,6 +1614,7 @@ input[type="range"] {
     updateTiltLabel();
     resetMotionState();
     syncFullscreenFit();
+    syncPerformanceMode();
 
     viewer.hidden = false;
     viewer.setAttribute('aria-hidden', 'false');
@@ -1602,6 +1743,14 @@ input[type="range"] {
   window.addEventListener('resize', syncFullscreenFit, { passive: true });
   window.visualViewport?.addEventListener('resize', syncFullscreenFit, { passive: true });
 
+  if (mobilePerformanceQuery) {
+    if (typeof mobilePerformanceQuery.addEventListener === 'function') {
+      mobilePerformanceQuery.addEventListener('change', syncPerformanceMode);
+    } else if (typeof mobilePerformanceQuery.addListener === 'function') {
+      mobilePerformanceQuery.addListener(syncPerformanceMode);
+    }
+  }
+
   window.addEventListener('pagehide', () => {
     if (previewRafId) cancelAnimationFrame(previewRafId);
     revokeCurrentObjectUrl();
@@ -1612,6 +1761,7 @@ input[type="range"] {
   applyFit(fitSelect.value);
   applyStrength();
   updateTiltLabel();
+  syncPerformanceMode();
   setCardPose(previewCard, 0, 0, 0);
   syncFullscreenFit();
   startPreviewIdleLoop();
