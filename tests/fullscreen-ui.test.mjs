@@ -26,6 +26,25 @@ test('fullscreen card sizing is selected from the larger possible viewport fit',
   assert.match(html, /visualViewport/);
 });
 
+test('fullscreen card deliberately bleeds past the exact viewport fit', () => {
+  const viewerCardRule = html.match(/\.viewer \.holo-card \{[^}]+\}/s)?.[0] ?? '';
+
+  assert.match(html, /const FULLSCREEN_BLEED_SCALE = 1\.08/);
+  assert.match(html, /fit\.width \* FULLSCREEN_BLEED_SCALE/);
+  assert.match(html, /fit\.height \* FULLSCREEN_BLEED_SCALE/);
+  assert.match(viewerCardRule, /max-height:\s*none/);
+  assert.doesNotMatch(viewerCardRule, /max-width:/);
+});
+
+test('fullscreen background stays blank behind the masked image effect', () => {
+  const viewerRule = html.match(/\.viewer \{[^}]+\}/s)?.[0] ?? '';
+  const viewerGlowRule = html.match(/\.viewer-glow \{[^}]+\}/s)?.[0] ?? '';
+
+  assert.match(viewerRule, /background:\s*#000/);
+  assert.doesNotMatch(viewerRule, /radial-gradient/);
+  assert.match(viewerGlowRule, /display:\s*none/);
+});
+
 test('visible annotation copy is removed from the interface', () => {
   assert.doesNotMatch(html, /class="lead"/);
   assert.doesNotMatch(html, /class="preview-note"/);

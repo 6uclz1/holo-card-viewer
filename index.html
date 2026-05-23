@@ -54,8 +54,8 @@
   --card-aspect-ratio: 630 / 880;
   --card-ratio: 0.715909;
   --image-mask: linear-gradient(#fff, #fff);
-  --fullscreen-card-width: min(100vw, calc(100dvh * var(--card-ratio)));
-  --fullscreen-card-height: min(100dvh, calc(100vw / var(--card-ratio)));
+  --fullscreen-card-width: calc(min(100vw, calc(100dvh * var(--card-ratio))) * 1.08);
+  --fullscreen-card-height: calc(min(100dvh, calc(100vw / var(--card-ratio))) * 1.08);
 }
 
 * {
@@ -712,10 +712,7 @@ input[type="range"] {
   inset: 0;
   z-index: 50;
   display: block;
-  background:
-    radial-gradient(circle at var(--light-x) var(--light-y), rgba(137, 247, 255, 0.18), transparent 42%),
-    radial-gradient(circle at 20% 90%, rgba(255, 47, 175, 0.14), transparent 34%),
-    #02030a;
+  background: #000;
   touch-action: none;
   overflow: hidden;
 }
@@ -728,6 +725,7 @@ input[type="range"] {
   position: absolute;
   inset: -30%;
   z-index: 0;
+  display: none;
   background:
     conic-gradient(from var(--angle), rgba(255, 0, 164, 0.18), rgba(0, 229, 255, 0.2), rgba(255, 245, 82, 0.18), rgba(255, 0, 164, 0.18));
   filter: blur(64px);
@@ -787,8 +785,7 @@ input[type="range"] {
 .viewer .holo-card {
   width: var(--fullscreen-card-width);
   height: var(--fullscreen-card-height, calc(var(--fullscreen-card-width) / var(--card-ratio)));
-  max-width: calc(100vw - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px) - 16px);
-  max-height: calc(100dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px) - 16px);
+  max-height: none;
   aspect-ratio: var(--card-aspect-ratio);
 }
 
@@ -1042,6 +1039,7 @@ input[type="range"] {
   const images = [previewImage, fullImage];
   const MAX_DISPLAY_IMAGE_EDGE = 1800;
   const DISPLAY_IMAGE_QUALITY = 0.86;
+  const FULLSCREEN_BLEED_SCALE = 1.08;
   const MOBILE_RENDER_FRAME_INTERVAL = 1000 / 30;
   const DESKTOP_RENDER_FRAME_INTERVAL = 1000 / 60;
   const mobilePerformanceQuery = window.matchMedia?.('(pointer: coarse), (max-width: 760px)');
@@ -1149,8 +1147,8 @@ input[type="range"] {
     const cardRatio = Number.parseFloat(getComputedStyle(fullCard).getPropertyValue('--card-ratio')) || 630 / 880;
     const fit = selectFullscreenFit(viewportWidth, viewportHeight, cardRatio);
 
-    viewer.style.setProperty('--fullscreen-card-width', `${fit.width.toFixed(2)}px`);
-    viewer.style.setProperty('--fullscreen-card-height', `${fit.height.toFixed(2)}px`);
+    viewer.style.setProperty('--fullscreen-card-width', `${(fit.width * FULLSCREEN_BLEED_SCALE).toFixed(2)}px`);
+    viewer.style.setProperty('--fullscreen-card-height', `${(fit.height * FULLSCREEN_BLEED_SCALE).toFixed(2)}px`);
     viewer.dataset.fitAxis = fit.axis;
   }
 
