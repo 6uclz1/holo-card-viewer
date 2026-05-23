@@ -5,6 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <meta name="color-scheme" content="dark" />
   <meta name="theme-color" content="#070712" />
+  <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="icon" href="icons/icon.svg" type="image/svg+xml" />
+  <link rel="apple-touch-icon" href="icons/icon-192.png" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-title" content="Holo Card" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
@@ -51,7 +54,8 @@
   --card-aspect-ratio: 630 / 880;
   --card-ratio: 0.715909;
   --image-mask: linear-gradient(#fff, #fff);
-  --viewer-vertical-chrome: calc(env(safe-area-inset-top, 0px) + env(safe-area-inset-bottom, 0px) + 86px);
+  --fullscreen-card-width: min(100vw, calc(100dvh * var(--card-ratio)));
+  --fullscreen-card-height: min(100dvh, calc(100vw / var(--card-ratio)));
 }
 
 * {
@@ -123,13 +127,6 @@ h1 {
   font-size: clamp(2.35rem, 8vw, 5.6rem);
   line-height: 0.9;
   letter-spacing: -0.08em;
-}
-
-.lead {
-  max-width: 62ch;
-  margin: 22px 0 26px;
-  color: var(--muted);
-  line-height: 1.85;
 }
 
 .visually-hidden {
@@ -251,6 +248,7 @@ input[type="range"] {
   border-radius: 999px;
   padding: 0 18px;
   font-weight: 760;
+  background: rgba(255, 255, 255, 0.13);
 }
 
 .primary-button {
@@ -264,17 +262,6 @@ input[type="range"] {
   color: var(--text);
   border: 1px solid rgba(255, 255, 255, 0.16);
   background: rgba(255, 255, 255, 0.08);
-}
-
-.status,
-.preview-note {
-  color: var(--soft);
-  font-size: 0.9rem;
-  line-height: 1.6;
-}
-
-.status {
-  margin: 16px 0 0;
 }
 
 .preview-area {
@@ -716,13 +703,7 @@ input[type="range"] {
   position: fixed;
   inset: 0;
   z-index: 50;
-  display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
-  padding:
-    calc(env(safe-area-inset-top, 0px) + 12px)
-    calc(env(safe-area-inset-right, 0px) + 14px)
-    calc(env(safe-area-inset-bottom, 0px) + 14px)
-    calc(env(safe-area-inset-left, 0px) + 14px);
+  display: block;
   background:
     radial-gradient(circle at var(--light-x) var(--light-y), rgba(137, 247, 255, 0.18), transparent 42%),
     radial-gradient(circle at 20% 90%, rgba(255, 47, 175, 0.14), transparent 34%),
@@ -748,43 +729,59 @@ input[type="range"] {
 }
 
 .viewer-toolbar {
-  position: relative;
-  z-index: 2;
+  position: absolute;
+  right: calc(env(safe-area-inset-right, 0px) + 18px);
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 18px);
+  z-index: 3;
   display: flex;
   align-items: center;
   gap: 10px;
   flex-wrap: wrap;
+  max-width: min(360px, calc(100vw - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px) - 36px));
+  padding: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  border-radius: 999px;
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.22), rgba(255, 255, 255, 0.07)),
+    rgba(14, 18, 32, 0.36);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.34),
+    inset 0 -18px 38px rgba(255, 255, 255, 0.05),
+    0 22px 64px rgba(0, 0, 0, 0.34);
+  backdrop-filter: blur(24px) saturate(1.65);
+  -webkit-backdrop-filter: blur(24px) saturate(1.65);
 }
 
 .toolbar-button {
-  min-height: 40px;
-  padding: 0 14px;
-  background: rgba(255, 255, 255, 0.09);
-  backdrop-filter: blur(14px);
-}
-
-.live-mode {
-  margin-left: auto;
-  color: rgba(255, 255, 255, 0.72);
-  font-size: 0.82rem;
-  line-height: 1.45;
+  min-height: 42px;
+  padding: 0 16px;
+  background: rgba(255, 255, 255, 0.13);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.32),
+    0 10px 26px rgba(0, 0, 0, 0.22);
 }
 
 .viewer-stage {
-  position: relative;
+  position: absolute;
+  inset: 0;
   z-index: 1;
   min-height: 0;
   display: grid;
   place-items: center;
+  padding:
+    calc(env(safe-area-inset-top, 0px) + 8px)
+    calc(env(safe-area-inset-right, 0px) + 8px)
+    calc(env(safe-area-inset-bottom, 0px) + 8px)
+    calc(env(safe-area-inset-left, 0px) + 8px);
   perspective: 1300px;
 }
 
 .viewer .holo-card {
-  width: min(
-    calc(100vw - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px) - 28px),
-    calc((100dvh - var(--viewer-vertical-chrome)) * var(--card-ratio))
-  );
-  max-height: calc(100dvh - var(--viewer-vertical-chrome));
+  width: var(--fullscreen-card-width);
+  height: var(--fullscreen-card-height, calc(var(--fullscreen-card-width) / var(--card-ratio)));
+  max-width: calc(100vw - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px) - 16px);
+  max-height: calc(100dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px) - 16px);
+  aspect-ratio: var(--card-aspect-ratio);
 }
 
 @keyframes glitterJitter {
@@ -860,16 +857,8 @@ input[type="range"] {
 }
 
 @media (orientation: landscape) and (max-height: 520px) {
-  :root {
-    --viewer-vertical-chrome: calc(env(safe-area-inset-top, 0px) + env(safe-area-inset-bottom, 0px) + 66px);
-  }
-
-  .viewer {
-    grid-template-rows: auto 1fr;
-  }
-
   .viewer-toolbar {
-    opacity: 0.82;
+    opacity: 0.86;
   }
 }
 
@@ -894,10 +883,6 @@ input[type="range"] {
     <section class="panel">
       <p class="eyebrow">Local static web app</p>
       <h1 id="app-title">Holo Card Viewer</h1>
-      <p class="lead">
-        任意の画像を選択し、スマホの傾きに合わせてトレーディングカード風のホログラフィック効果を重ねます。
-        画像はブラウザ内だけで処理され、サーバー送信は行いません。
-      </p>
 
       <div class="uploader">
         <input id="imageInput" class="visually-hidden" type="file" accept="image/*" />
@@ -948,9 +933,7 @@ input[type="range"] {
         <button id="resetButton" class="ghost-button" type="button">サンプルに戻す</button>
       </div>
 
-      <p id="status" class="status" role="status" aria-live="polite">
-        プレビューはマウスまたはタッチ移動でも反応します。スマホでは実行ボタン後にセンサー許可が求められる場合があります。
-      </p>
+      <p id="status" class="visually-hidden" role="status" aria-live="polite"></p>
     </section>
 
     <section class="preview-area" aria-label="プレビュー">
@@ -963,7 +946,6 @@ input[type="range"] {
           <div class="foil foil-sparkles" aria-hidden="true"></div>
         </article>
       </div>
-      <p class="preview-note">プレビュー上でポインターを動かすと光の動きを確認できます。</p>
     </section>
   </main>
 
@@ -972,7 +954,7 @@ input[type="range"] {
     <div class="viewer-toolbar">
       <button id="exitButton" class="toolbar-button" type="button">閉じる</button>
       <button id="recalibrateButton" class="toolbar-button" type="button">角度リセット</button>
-      <span id="liveMode" class="live-mode">待機中</span>
+      <span id="liveMode" class="visually-hidden" aria-live="polite">待機中</span>
     </div>
 
     <div id="viewerStage" class="viewer-stage">
@@ -1098,10 +1080,42 @@ input[type="range"] {
       card.style.setProperty('--card-aspect-ratio', `${width} / ${height}`);
       card.style.setProperty('--card-ratio', ratio.toFixed(6));
     });
+    syncFullscreenFit();
   }
 
   function syncImageLayoutFromImage(image) {
     applyImageLayout(image.naturalWidth, image.naturalHeight);
+  }
+
+  function selectFullscreenFit(viewportWidth, viewportHeight, cardRatio) {
+    const widthFitHeight = viewportWidth / cardRatio;
+    const heightFitWidth = viewportHeight * cardRatio;
+
+    if (widthFitHeight <= viewportHeight) {
+      return {
+        axis: 'width',
+        width: viewportWidth,
+        height: widthFitHeight,
+      };
+    }
+
+    return {
+      axis: 'height',
+      width: heightFitWidth,
+      height: viewportHeight,
+    };
+  }
+
+  function syncFullscreenFit() {
+    const viewport = window.visualViewport;
+    const viewportWidth = Math.max(1, (viewport ? viewport.width : window.innerWidth) - 16);
+    const viewportHeight = Math.max(1, (viewport ? viewport.height : window.innerHeight) - 16);
+    const cardRatio = Number.parseFloat(getComputedStyle(fullCard).getPropertyValue('--card-ratio')) || 630 / 880;
+    const fit = selectFullscreenFit(viewportWidth, viewportHeight, cardRatio);
+
+    viewer.style.setProperty('--fullscreen-card-width', `${fit.width.toFixed(2)}px`);
+    viewer.style.setProperty('--fullscreen-card-height', `${fit.height.toFixed(2)}px`);
+    viewer.dataset.fitAxis = fit.axis;
   }
 
   function setStatus(message) {
@@ -1459,6 +1473,7 @@ input[type="range"] {
     applyStrength();
     updateTiltLabel();
     resetMotionState();
+    syncFullscreenFit();
 
     viewer.hidden = false;
     viewer.setAttribute('aria-hidden', 'false');
@@ -1584,6 +1599,9 @@ input[type="range"] {
     }
   });
 
+  window.addEventListener('resize', syncFullscreenFit, { passive: true });
+  window.visualViewport?.addEventListener('resize', syncFullscreenFit, { passive: true });
+
   window.addEventListener('pagehide', () => {
     if (previewRafId) cancelAnimationFrame(previewRafId);
     revokeCurrentObjectUrl();
@@ -1595,7 +1613,16 @@ input[type="range"] {
   applyStrength();
   updateTiltLabel();
   setCardPose(previewCard, 0, 0, 0);
+  syncFullscreenFit();
   startPreviewIdleLoop();
+
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('sw.js').catch((error) => {
+        console.warn('Service worker registration failed:', error);
+      });
+    });
+  }
 })();
   </script>
 </body>
