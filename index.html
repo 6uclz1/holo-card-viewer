@@ -1,0 +1,1219 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="color-scheme" content="dark" />
+  <meta name="theme-color" content="#070712" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-title" content="Holo Card" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <title>Holo Card Viewer - GitHub Pages</title>
+  <style>
+:root {
+  --bg: #070711;
+  --panel: rgba(255, 255, 255, 0.075);
+  --panel-strong: rgba(255, 255, 255, 0.12);
+  --line: rgba(255, 255, 255, 0.18);
+  --text: #f4f7ff;
+  --muted: rgba(244, 247, 255, 0.68);
+  --soft: rgba(244, 247, 255, 0.48);
+  --accent: #c9f2ff;
+  --shadow: 0 28px 80px rgba(0, 0, 0, 0.46);
+  --radius-lg: 28px;
+  --radius-md: 18px;
+  --rx: 0deg;
+  --ry: 0deg;
+  --light-x: 50%;
+  --light-y: 50%;
+  --shift-x: 50%;
+  --shift-y: 50%;
+  --angle: 132deg;
+  --foil-opacity: 0.58;
+  --sheen-opacity: 0.72;
+  --texture-opacity: 0.36;
+  --sparkle-opacity: 0.28;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  color: var(--text);
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  background:
+    radial-gradient(circle at top left, rgba(88, 74, 255, 0.24), transparent 34rem),
+    radial-gradient(circle at bottom right, rgba(255, 71, 171, 0.18), transparent 32rem),
+    linear-gradient(135deg, #05050c, #0a0a16 48%, #040409);
+}
+
+body.viewer-open {
+  overflow: hidden;
+}
+
+button,
+select,
+input {
+  font: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+.app {
+  width: min(1120px, calc(100% - 32px));
+  min-height: 100dvh;
+  margin: 0 auto;
+  padding: clamp(28px, 6dvh, 72px) 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1.06fr) minmax(280px, 420px);
+  gap: clamp(24px, 6vw, 72px);
+  align-items: center;
+}
+
+.panel {
+  padding: clamp(24px, 4vw, 42px);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.105), rgba(255, 255, 255, 0.055)),
+    rgba(5, 6, 16, 0.72);
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(20px);
+}
+
+.eyebrow {
+  margin: 0 0 8px;
+  color: var(--accent);
+  font-size: 0.76rem;
+  font-weight: 700;
+  letter-spacing: 0.17em;
+  text-transform: uppercase;
+}
+
+h1 {
+  margin: 0;
+  font-size: clamp(2.35rem, 8vw, 5.6rem);
+  line-height: 0.9;
+  letter-spacing: -0.08em;
+}
+
+.lead {
+  max-width: 62ch;
+  margin: 22px 0 26px;
+  color: var(--muted);
+  line-height: 1.85;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.drop-zone {
+  min-height: 132px;
+  display: grid;
+  gap: 6px;
+  place-items: center;
+  padding: 22px;
+  border: 1px dashed rgba(255, 255, 255, 0.34);
+  border-radius: 22px;
+  background:
+    radial-gradient(circle at 50% 0%, rgba(201, 242, 255, 0.14), transparent 60%),
+    rgba(255, 255, 255, 0.045);
+  color: var(--text);
+  text-align: center;
+  transition: border-color 160ms ease, background 160ms ease, transform 160ms ease;
+}
+
+.drop-zone:hover,
+.drop-zone.is-dragover {
+  border-color: rgba(201, 242, 255, 0.88);
+  background:
+    radial-gradient(circle at 50% 0%, rgba(201, 242, 255, 0.24), transparent 62%),
+    rgba(255, 255, 255, 0.07);
+  transform: translateY(-1px);
+}
+
+.drop-zone__mark {
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 999px;
+  color: var(--accent);
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.drop-zone__title {
+  font-weight: 750;
+}
+
+.drop-zone__meta {
+  max-width: 56ch;
+  color: var(--soft);
+  font-size: 0.87rem;
+  line-height: 1.55;
+}
+
+.controls {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+  margin-top: 18px;
+}
+
+.field {
+  display: grid;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 0.86rem;
+}
+
+.field > span {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+select,
+input[type="range"] {
+  width: 100%;
+}
+
+select {
+  min-height: 46px;
+  padding: 0 42px 0 14px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 14px;
+  color: var(--text);
+  background: rgba(10, 11, 24, 0.92);
+}
+
+input[type="range"] {
+  accent-color: var(--accent);
+}
+
+.range-field {
+  padding: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.11);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 22px;
+}
+
+.primary-button,
+.ghost-button,
+.toolbar-button {
+  min-height: 48px;
+  border: 0;
+  border-radius: 999px;
+  padding: 0 18px;
+  font-weight: 760;
+}
+
+.primary-button {
+  color: #041017;
+  background: linear-gradient(135deg, #fbffff, #bff4ff 42%, #ffd4f0);
+  box-shadow: 0 12px 32px rgba(122, 235, 255, 0.2);
+}
+
+.ghost-button,
+.toolbar-button {
+  color: var(--text);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.status,
+.preview-note {
+  color: var(--soft);
+  font-size: 0.9rem;
+  line-height: 1.6;
+}
+
+.status {
+  margin: 16px 0 0;
+}
+
+.preview-area {
+  display: grid;
+  justify-items: center;
+  gap: 16px;
+}
+
+.preview-shell {
+  width: min(100%, 390px);
+  padding: clamp(16px, 5vw, 26px);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 34px;
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.09), rgba(255, 255, 255, 0.035)),
+    rgba(0, 0, 0, 0.22);
+  box-shadow: var(--shadow);
+  perspective: 1200px;
+}
+
+.holo-card {
+  position: relative;
+  isolation: isolate;
+  width: 100%;
+  aspect-ratio: 63 / 88;
+  overflow: hidden;
+  border-radius: clamp(18px, 4vw, 30px);
+  background:
+    radial-gradient(circle at 50% 10%, rgba(255, 255, 255, 0.12), transparent 46%),
+    linear-gradient(135deg, #111321, #070913);
+  box-shadow:
+    0 34px 74px rgba(0, 0, 0, 0.42),
+    0 0 0 1px rgba(255, 255, 255, 0.14) inset,
+    0 0 0 1px rgba(255, 255, 255, 0.08);
+  transform: perspective(1100px) rotateX(var(--rx)) rotateY(var(--ry)) translateZ(0);
+  transform-style: preserve-3d;
+  transition: box-shadow 180ms ease, filter 180ms ease;
+  will-change: transform;
+}
+
+.holo-card::before,
+.holo-card::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+}
+
+.holo-card::before {
+  z-index: 6;
+  background:
+    radial-gradient(circle at var(--light-x) var(--light-y), rgba(255, 255, 255, 0.96), rgba(255, 255, 255, 0.28) 9%, rgba(255, 255, 255, 0.05) 22%, transparent 38%);
+  mix-blend-mode: screen;
+  opacity: var(--sheen-opacity);
+  transform: translateZ(18px);
+}
+
+.holo-card::after {
+  z-index: 8;
+  box-shadow:
+    inset 0 0 1px 1px rgba(255, 255, 255, 0.55),
+    inset 0 0 18px rgba(255, 255, 255, 0.12),
+    inset 0 -44px 70px rgba(0, 0, 0, 0.34);
+}
+
+.card-image {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  background: rgba(3, 4, 10, 0.72);
+  transform: translateZ(1px) scale(1.002);
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
+.holo-card.is-cover .card-image {
+  object-fit: cover;
+}
+
+.foil {
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  pointer-events: none;
+  will-change: background-position, opacity, filter;
+}
+
+.foil-base {
+  z-index: 2;
+  opacity: var(--foil-opacity);
+  mix-blend-mode: color-dodge;
+}
+
+.foil-sheen {
+  z-index: 3;
+  opacity: var(--sheen-opacity);
+  mix-blend-mode: screen;
+}
+
+.foil-texture {
+  z-index: 4;
+  opacity: var(--texture-opacity);
+  mix-blend-mode: soft-light;
+}
+
+.foil-sparkles {
+  z-index: 5;
+  opacity: var(--sparkle-opacity);
+  mix-blend-mode: screen;
+}
+
+.effect-rainbow .foil-base {
+  background:
+    conic-gradient(from var(--angle) at var(--light-x) var(--light-y), #ff008c, #ffcf33, #43ff75, #30d6ff, #7658ff, #ff008c),
+    linear-gradient(calc(var(--angle) + 28deg), transparent 0 28%, rgba(255, 255, 255, 0.86) 43%, transparent 58% 100%);
+  background-size: 220% 220%, 180% 180%;
+  background-position: var(--shift-x) var(--shift-y), var(--shift-y) var(--shift-x);
+  filter: saturate(1.5) contrast(1.08);
+}
+
+.effect-rainbow .foil-sheen {
+  background:
+    linear-gradient(calc(var(--angle) - 14deg), transparent 20%, rgba(255, 255, 255, 0.72) 45%, rgba(255, 255, 255, 0.12) 51%, transparent 70%),
+    radial-gradient(circle at var(--light-x) var(--light-y), rgba(255, 255, 255, 0.88), transparent 30%);
+  background-size: 220% 220%, 100% 100%;
+  background-position: var(--shift-x) var(--shift-y), center;
+}
+
+.effect-rainbow .foil-texture {
+  background:
+    repeating-linear-gradient(112deg, rgba(255, 255, 255, 0.24) 0 1px, transparent 1px 8px),
+    repeating-linear-gradient(28deg, rgba(255, 255, 255, 0.12) 0 1px, transparent 1px 13px);
+  background-position: var(--shift-y) var(--shift-x);
+}
+
+.effect-glitter .foil-base {
+  background:
+    radial-gradient(circle at var(--light-x) var(--light-y), rgba(255, 255, 255, 0.98), transparent 20%),
+    linear-gradient(120deg, rgba(0, 229, 255, 0.12), rgba(255, 0, 142, 0.46), rgba(255, 225, 0, 0.18), rgba(108, 255, 170, 0.36));
+  background-size: 100% 100%, 180% 180%;
+  background-position: center, var(--shift-x) var(--shift-y);
+  filter: saturate(1.35);
+}
+
+.effect-glitter .foil-sheen {
+  background: linear-gradient(calc(var(--angle) + 12deg), transparent 22%, rgba(255, 255, 255, 0.8) 47%, transparent 62%);
+  background-size: 260% 260%;
+  background-position: var(--shift-x) var(--shift-y);
+}
+
+.effect-glitter .foil-texture,
+.effect-glitter .foil-sparkles {
+  background:
+    radial-gradient(circle at 12% 17%, rgba(255, 255, 255, 0.95) 0 1px, transparent 2px),
+    radial-gradient(circle at 72% 28%, rgba(255, 255, 255, 0.82) 0 1.5px, transparent 2.5px),
+    radial-gradient(circle at 34% 64%, rgba(255, 255, 255, 0.72) 0 1px, transparent 2px),
+    radial-gradient(circle at 86% 76%, rgba(255, 255, 255, 0.95) 0 1.2px, transparent 2.4px),
+    radial-gradient(circle at 52% 42%, rgba(255, 255, 255, 0.84) 0 0.9px, transparent 2px);
+  background-size: 96px 124px, 122px 100px, 84px 110px, 116px 130px, 72px 94px;
+  background-position:
+    var(--shift-x) var(--shift-y),
+    var(--shift-y) var(--shift-x),
+    30% 70%,
+    80% 20%,
+    50% 50%;
+  animation: glitterJitter 900ms steps(2, end) infinite;
+}
+
+.effect-prism .foil-base {
+  background:
+    repeating-conic-gradient(from var(--angle) at var(--light-x) var(--light-y),
+      rgba(255, 0, 170, 0.08) 0deg 8deg,
+      rgba(255, 255, 255, 0.72) 9deg 11deg,
+      rgba(0, 224, 255, 0.14) 12deg 20deg,
+      rgba(255, 244, 0, 0.42) 21deg 25deg,
+      rgba(104, 64, 255, 0.16) 26deg 36deg);
+  background-size: 180% 180%;
+  background-position: var(--shift-x) var(--shift-y);
+  filter: contrast(1.12) saturate(1.6);
+}
+
+.effect-prism .foil-sheen {
+  background:
+    linear-gradient(64deg, transparent 0 20%, rgba(255, 255, 255, 0.54) 21% 22%, transparent 23% 46%, rgba(255, 255, 255, 0.28) 47% 48%, transparent 49% 100%),
+    linear-gradient(146deg, transparent 0 34%, rgba(255, 255, 255, 0.72) 35% 37%, transparent 38% 100%);
+  background-size: 132px 142px, 190px 178px;
+  background-position: var(--shift-x) var(--shift-y), var(--shift-y) var(--shift-x);
+}
+
+.effect-prism .foil-texture {
+  background:
+    linear-gradient(30deg, rgba(255, 255, 255, 0.18) 0 1px, transparent 1px 22px),
+    linear-gradient(150deg, rgba(255, 255, 255, 0.13) 0 1px, transparent 1px 26px);
+  background-size: 74px 74px;
+  background-position: var(--shift-x) var(--shift-y);
+}
+
+.effect-scan .foil-base {
+  background:
+    linear-gradient(var(--angle), transparent 4%, rgba(255, 255, 255, 0.94) 44%, rgba(255, 255, 255, 0.18) 50%, transparent 63%),
+    linear-gradient(90deg, rgba(255, 0, 145, 0.5), rgba(0, 238, 255, 0.55), rgba(255, 244, 80, 0.48), rgba(255, 0, 145, 0.5));
+  background-size: 260% 260%, 200% 100%;
+  background-position: var(--shift-x) var(--shift-y), var(--shift-y) center;
+  filter: saturate(1.45);
+}
+
+.effect-scan .foil-sheen {
+  background:
+    repeating-linear-gradient(calc(var(--angle) + 78deg), rgba(255, 255, 255, 0.24) 0 1px, transparent 1px 7px),
+    linear-gradient(calc(var(--angle) - 12deg), transparent 0 36%, rgba(255, 255, 255, 0.72) 46%, transparent 58% 100%);
+  background-size: 100% 100%, 240% 240%;
+  background-position: center, var(--shift-x) var(--shift-y);
+}
+
+.effect-scan .foil-texture {
+  background:
+    repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.14) 0 1px, transparent 1px 5px),
+    repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.08) 0 1px, transparent 1px 11px);
+}
+
+.effect-aurora .foil-base {
+  background:
+    radial-gradient(ellipse at var(--light-x) var(--light-y), rgba(255, 255, 255, 0.8), transparent 22%),
+    radial-gradient(ellipse at 15% 20%, rgba(0, 255, 190, 0.52), transparent 42%),
+    radial-gradient(ellipse at 85% 32%, rgba(255, 66, 210, 0.48), transparent 42%),
+    radial-gradient(ellipse at 46% 82%, rgba(94, 120, 255, 0.58), transparent 44%),
+    linear-gradient(135deg, rgba(255, 245, 130, 0.26), rgba(0, 238, 255, 0.18), rgba(255, 0, 170, 0.22));
+  background-size: 100% 100%, 160% 160%, 170% 140%, 150% 180%, 180% 180%;
+  background-position: center, var(--shift-x) var(--shift-y), var(--shift-y) var(--shift-x), 50% 80%, var(--shift-x) var(--shift-y);
+  animation: auroraFloat 7s ease-in-out infinite alternate;
+  filter: blur(0.2px) saturate(1.42);
+}
+
+.effect-aurora .foil-sheen {
+  background:
+    linear-gradient(calc(var(--angle) + 24deg), transparent 15%, rgba(255, 255, 255, 0.42) 34%, transparent 52%),
+    radial-gradient(circle at var(--light-x) var(--light-y), rgba(255, 255, 255, 0.7), transparent 32%);
+  background-size: 220% 220%, 100% 100%;
+  background-position: var(--shift-x) var(--shift-y), center;
+}
+
+.effect-aurora .foil-texture {
+  background: repeating-linear-gradient(120deg, rgba(255, 255, 255, 0.11) 0 1px, transparent 1px 16px);
+  background-position: var(--shift-y) var(--shift-x);
+}
+
+.viewer {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  padding:
+    calc(env(safe-area-inset-top, 0px) + 12px)
+    calc(env(safe-area-inset-right, 0px) + 14px)
+    calc(env(safe-area-inset-bottom, 0px) + 14px)
+    calc(env(safe-area-inset-left, 0px) + 14px);
+  background:
+    radial-gradient(circle at var(--light-x) var(--light-y), rgba(137, 247, 255, 0.18), transparent 42%),
+    radial-gradient(circle at 20% 90%, rgba(255, 47, 175, 0.14), transparent 34%),
+    #02030a;
+  touch-action: none;
+  overflow: hidden;
+}
+
+.viewer[hidden] {
+  display: none;
+}
+
+.viewer-glow {
+  position: absolute;
+  inset: -30%;
+  z-index: 0;
+  background:
+    conic-gradient(from var(--angle), rgba(255, 0, 164, 0.18), rgba(0, 229, 255, 0.2), rgba(255, 245, 82, 0.18), rgba(255, 0, 164, 0.18));
+  filter: blur(64px);
+  opacity: 0.46;
+  transform: translate3d(0, 0, 0) rotate(0deg);
+  animation: slowSpin 14s linear infinite;
+}
+
+.viewer-toolbar {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.toolbar-button {
+  min-height: 40px;
+  padding: 0 14px;
+  background: rgba(255, 255, 255, 0.09);
+  backdrop-filter: blur(14px);
+}
+
+.live-mode {
+  margin-left: auto;
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+
+.viewer-stage {
+  position: relative;
+  z-index: 1;
+  min-height: 0;
+  display: grid;
+  place-items: center;
+  perspective: 1300px;
+}
+
+.viewer .holo-card {
+  width: min(88vw, 520px, calc((100dvh - 112px) * 0.7159));
+  max-height: calc(100dvh - 112px);
+}
+
+@keyframes glitterJitter {
+  0%, 100% { filter: brightness(0.86); }
+  50% { filter: brightness(1.55); }
+}
+
+@keyframes auroraFloat {
+  0% { filter: blur(0.1px) saturate(1.25) hue-rotate(0deg); }
+  100% { filter: blur(0.8px) saturate(1.65) hue-rotate(18deg); }
+}
+
+@keyframes slowSpin {
+  to { transform: translate3d(0, 0, 0) rotate(360deg); }
+}
+
+@media (max-width: 840px) {
+  .app {
+    grid-template-columns: 1fr;
+    align-items: start;
+    padding: 22px 0 36px;
+  }
+
+  .panel {
+    order: 2;
+  }
+
+  .preview-area {
+    order: 1;
+  }
+
+  .preview-shell {
+    width: min(74vw, 340px);
+  }
+
+  .controls {
+    grid-template-columns: 1fr;
+  }
+
+  .lead {
+    margin-top: 16px;
+  }
+}
+
+@media (orientation: landscape) and (max-height: 520px) {
+  .viewer {
+    grid-template-rows: auto 1fr;
+  }
+
+  .viewer .holo-card {
+    width: min(42vw, calc((100dvh - 74px) * 0.7159));
+  }
+
+  .viewer-toolbar {
+    opacity: 0.82;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+  }
+
+  .holo-card {
+    transition: none;
+  }
+}
+
+  </style>
+</head>
+<body>
+  <main class="app" aria-labelledby="app-title">
+    <section class="panel">
+      <p class="eyebrow">Local static web app</p>
+      <h1 id="app-title">Holo Card Viewer</h1>
+      <p class="lead">
+        任意の画像を選択し、スマホの傾きに合わせてトレーディングカード風のホログラフィック効果を重ねます。
+        画像はブラウザ内だけで処理され、サーバー送信は行いません。
+      </p>
+
+      <div class="uploader">
+        <input id="imageInput" class="visually-hidden" type="file" accept="image/*" />
+        <label id="dropZone" class="drop-zone" for="imageInput">
+          <span class="drop-zone__mark" aria-hidden="true">◇</span>
+          <span class="drop-zone__title">画像を選択 / ドロップ</span>
+          <span id="fileName" class="drop-zone__meta">PNG / JPEG / WebP / SVG など。未選択時は内蔵サンプルを表示します。</span>
+        </label>
+      </div>
+
+      <div class="controls" aria-label="ホログラフィック設定">
+        <label class="field">
+          <span>エフェクト</span>
+          <select id="effectSelect">
+            <option value="rainbow">虹箔 - レインボーフォイル</option>
+            <option value="glitter">粒子 - グリッタースパーク</option>
+            <option value="prism">結晶 - プリズムフレーク</option>
+            <option value="scan">帯光 - スキャンライン</option>
+            <option value="aurora">揺光 - オーロラウェーブ</option>
+          </select>
+        </label>
+
+        <label class="field">
+          <span>画像フィット</span>
+          <select id="fitSelect">
+            <option value="contain">全体を表示</option>
+            <option value="cover">カード全面にトリミング</option>
+          </select>
+        </label>
+
+        <label class="field range-field">
+          <span>輝き <output id="strengthValue" for="strengthRange">76%</output></span>
+          <input id="strengthRange" type="range" min="0" max="100" value="76" />
+        </label>
+
+        <label class="field range-field">
+          <span>傾き感度 <output id="tiltValue" for="tiltRange">72%</output></span>
+          <input id="tiltRange" type="range" min="0" max="100" value="72" />
+        </label>
+      </div>
+
+      <div class="actions">
+        <button id="startButton" class="primary-button" type="button">実行して全画面表示</button>
+        <button id="resetButton" class="ghost-button" type="button">サンプルに戻す</button>
+      </div>
+
+      <p id="status" class="status" role="status" aria-live="polite">
+        プレビューはマウスまたはタッチ移動でも反応します。スマホでは実行ボタン後にセンサー許可が求められる場合があります。
+      </p>
+    </section>
+
+    <section class="preview-area" aria-label="プレビュー">
+      <div class="preview-shell">
+        <article id="previewCard" class="holo-card effect-rainbow" aria-label="ホログラフィックカードのプレビュー">
+          <img id="previewImage" class="card-image" alt="選択したカード画像のプレビュー" />
+          <div class="foil foil-base" aria-hidden="true"></div>
+          <div class="foil foil-sheen" aria-hidden="true"></div>
+          <div class="foil foil-texture" aria-hidden="true"></div>
+          <div class="foil foil-sparkles" aria-hidden="true"></div>
+        </article>
+      </div>
+      <p class="preview-note">プレビュー上でポインターを動かすと光の動きを確認できます。</p>
+    </section>
+  </main>
+
+  <div id="viewer" class="viewer" hidden aria-hidden="true">
+    <div class="viewer-glow" aria-hidden="true"></div>
+    <div class="viewer-toolbar">
+      <button id="exitButton" class="toolbar-button" type="button">閉じる</button>
+      <button id="recalibrateButton" class="toolbar-button" type="button">角度リセット</button>
+      <span id="liveMode" class="live-mode">待機中</span>
+    </div>
+
+    <div id="viewerStage" class="viewer-stage">
+      <article id="fullCard" class="holo-card effect-rainbow" aria-label="ホログラフィックカード全画面表示">
+        <img id="fullImage" class="card-image" alt="選択したカード画像" />
+        <div class="foil foil-base" aria-hidden="true"></div>
+        <div class="foil foil-sheen" aria-hidden="true"></div>
+        <div class="foil foil-texture" aria-hidden="true"></div>
+        <div class="foil foil-sparkles" aria-hidden="true"></div>
+      </article>
+    </div>
+  </div>
+
+  <script>
+(() => {
+  'use strict';
+
+  const $ = (selector) => document.querySelector(selector);
+
+  const imageInput = $('#imageInput');
+  const dropZone = $('#dropZone');
+  const fileName = $('#fileName');
+  const effectSelect = $('#effectSelect');
+  const fitSelect = $('#fitSelect');
+  const strengthRange = $('#strengthRange');
+  const strengthValue = $('#strengthValue');
+  const tiltRange = $('#tiltRange');
+  const tiltValue = $('#tiltValue');
+  const startButton = $('#startButton');
+  const resetButton = $('#resetButton');
+  const status = $('#status');
+
+  const previewCard = $('#previewCard');
+  const previewImage = $('#previewImage');
+  const fullCard = $('#fullCard');
+  const fullImage = $('#fullImage');
+  const viewer = $('#viewer');
+  const viewerStage = $('#viewerStage');
+  const exitButton = $('#exitButton');
+  const recalibrateButton = $('#recalibrateButton');
+  const liveMode = $('#liveMode');
+
+  const effectClasses = ['effect-rainbow', 'effect-glitter', 'effect-prism', 'effect-scan', 'effect-aurora'];
+  const cards = [previewCard, fullCard];
+  const images = [previewImage, fullImage];
+
+  const sampleSvg = `
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 630 880">
+    <defs>
+      <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0" stop-color="#19203d" />
+        <stop offset="0.48" stop-color="#32124b" />
+        <stop offset="1" stop-color="#070a16" />
+      </linearGradient>
+      <radialGradient id="orb" cx="48%" cy="35%" r="42%">
+        <stop offset="0" stop-color="#faffff" stop-opacity="0.92" />
+        <stop offset="0.18" stop-color="#8ff4ff" stop-opacity="0.62" />
+        <stop offset="0.62" stop-color="#843dff" stop-opacity="0.16" />
+        <stop offset="1" stop-color="#000000" stop-opacity="0" />
+      </radialGradient>
+      <filter id="softShadow" x="-20%" y="-20%" width="140%" height="140%">
+        <feDropShadow dx="0" dy="16" stdDeviation="22" flood-color="#000" flood-opacity="0.5" />
+      </filter>
+    </defs>
+    <rect width="630" height="880" rx="46" fill="url(#bg)" />
+    <rect x="36" y="36" width="558" height="808" rx="34" fill="none" stroke="#ffffff" stroke-opacity="0.22" stroke-width="4" />
+    <rect x="58" y="58" width="514" height="600" rx="28" fill="#07101f" stroke="#ffffff" stroke-opacity="0.18" />
+    <circle cx="315" cy="322" r="238" fill="url(#orb)" />
+    <path d="M186 528 C214 405 274 276 323 164 C365 283 422 404 455 528 C377 492 271 494 186 528Z" fill="#faffff" fill-opacity="0.82" filter="url(#softShadow)" />
+    <path d="M235 503 C262 397 292 316 323 237 C354 317 386 398 416 503 C357 482 292 482 235 503Z" fill="#11162a" fill-opacity="0.78" />
+    <path d="M315 174 L331 223 L383 224 L341 254 L357 304 L315 273 L273 304 L289 254 L247 224 L299 223Z" fill="#ffedf9" fill-opacity="0.9" />
+    <text x="315" y="728" text-anchor="middle" font-family="system-ui, -apple-system, Segoe UI, sans-serif" font-size="76" font-weight="800" letter-spacing="6" fill="#f5f7ff">HOLO</text>
+    <text x="315" y="780" text-anchor="middle" font-family="system-ui, -apple-system, Segoe UI, sans-serif" font-size="28" font-weight="600" letter-spacing="5" fill="#c9f2ff" fill-opacity="0.86">CARD VIEWER</text>
+  </svg>`;
+
+  const sampleUrl = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(sampleSvg)}`;
+
+  let currentObjectUrl = '';
+  let active = false;
+  let rafId = 0;
+  let sensorBound = false;
+  let baseline = null;
+  let lastOrientationAt = 0;
+  let lastPointerAt = 0;
+  let orientationDetected = false;
+  let fullscreenCloseInProgress = false;
+
+  const target = { x: 0, y: 0, sparkle: 0 };
+  const current = { x: 0, y: 0, sparkle: 0 };
+
+  const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
+  const lerp = (from, to, amount) => from + (to - from) * amount;
+
+  function setStatus(message) {
+    status.textContent = message;
+  }
+
+  function setLiveMode(message) {
+    liveMode.textContent = message;
+  }
+
+  function loadImageUrl(url) {
+    images.forEach((image) => {
+      image.src = url;
+    });
+  }
+
+  function revokeCurrentObjectUrl() {
+    if (currentObjectUrl) {
+      URL.revokeObjectURL(currentObjectUrl);
+      currentObjectUrl = '';
+    }
+  }
+
+  function loadFile(file) {
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      setStatus('画像ファイルを選択してください。');
+      return;
+    }
+
+    revokeCurrentObjectUrl();
+    currentObjectUrl = URL.createObjectURL(file);
+    loadImageUrl(currentObjectUrl);
+    fileName.textContent = `${file.name} / ${(file.size / 1024 / 1024).toFixed(2)} MB`;
+    setStatus('画像を読み込みました。エフェクトを選び、実行ボタンで全画面表示できます。');
+  }
+
+  function resetToSample() {
+    revokeCurrentObjectUrl();
+    imageInput.value = '';
+    loadImageUrl(sampleUrl);
+    fileName.textContent = 'PNG / JPEG / WebP / SVG など。未選択時は内蔵サンプルを表示します。';
+    setStatus('サンプル画像に戻しました。任意の画像に差し替えできます。');
+  }
+
+  function applyEffect(effectName) {
+    const className = `effect-${effectName}`;
+    cards.forEach((card) => {
+      card.classList.remove(...effectClasses);
+      card.classList.add(className);
+    });
+  }
+
+  function applyFit(fitMode) {
+    cards.forEach((card) => {
+      card.classList.toggle('is-cover', fitMode === 'cover');
+    });
+  }
+
+  function applyStrength() {
+    const value = Number(strengthRange.value);
+    const strength = value / 100;
+    strengthValue.value = `${value}%`;
+
+    cards.forEach((card) => {
+      card.style.setProperty('--foil-opacity', (0.14 + strength * 0.58).toFixed(3));
+      card.style.setProperty('--sheen-opacity', (0.16 + strength * 0.66).toFixed(3));
+      card.style.setProperty('--texture-opacity', (0.08 + strength * 0.42).toFixed(3));
+      card.style.setProperty('--sparkle-opacity', (0.1 + strength * 0.34).toFixed(3));
+    });
+  }
+
+  function updateTiltLabel() {
+    tiltValue.value = `${tiltRange.value}%`;
+  }
+
+  function getMaxTiltDegrees() {
+    return 4 + (Number(tiltRange.value) / 100) * 16;
+  }
+
+  function setCardPose(card, x, y, sparkle = 0) {
+    const normalizedX = clamp(x, -1, 1);
+    const normalizedY = clamp(y, -1, 1);
+    const maxTilt = getMaxTiltDegrees();
+    const angle = Math.atan2(normalizedY, normalizedX) * 180 / Math.PI + 132;
+    const lightX = 50 + normalizedX * 44;
+    const lightY = 50 + normalizedY * 44;
+    const shiftX = 50 + normalizedX * 36;
+    const shiftY = 50 + normalizedY * 36;
+    const strength = Number(strengthRange.value) / 100;
+    const sparkleOpacity = 0.08 + strength * 0.25 + clamp(sparkle, 0, 1) * 0.54;
+
+    card.style.setProperty('--rx', `${(-normalizedY * maxTilt).toFixed(2)}deg`);
+    card.style.setProperty('--ry', `${(normalizedX * maxTilt).toFixed(2)}deg`);
+    card.style.setProperty('--light-x', `${lightX.toFixed(2)}%`);
+    card.style.setProperty('--light-y', `${lightY.toFixed(2)}%`);
+    card.style.setProperty('--shift-x', `${shiftX.toFixed(2)}%`);
+    card.style.setProperty('--shift-y', `${shiftY.toFixed(2)}%`);
+    card.style.setProperty('--angle', `${angle.toFixed(2)}deg`);
+    card.style.setProperty('--sparkle-opacity', sparkleOpacity.toFixed(3));
+  }
+
+  function pointerToCardTilt(event, element) {
+    const rect = element.getBoundingClientRect();
+    const x = ((event.clientX - rect.left) / rect.width - 0.5) * 2;
+    const y = ((event.clientY - rect.top) / rect.height - 0.5) * 2;
+    return { x: clamp(x, -1, 1), y: clamp(y, -1, 1) };
+  }
+
+  function handlePreviewPointerMove(event) {
+    const tilt = pointerToCardTilt(event, previewCard);
+    setCardPose(previewCard, tilt.x, tilt.y, 0.18);
+  }
+
+  function handlePreviewPointerLeave() {
+    setCardPose(previewCard, 0, 0, 0);
+  }
+
+  function handleViewerPointerMove(event) {
+    if (!active) return;
+
+    const now = performance.now();
+    const orientationRecentlyUpdated = now - lastOrientationAt < 900;
+    if (orientationRecentlyUpdated) return;
+
+    lastPointerAt = now;
+    const tilt = pointerToCardTilt(event, viewerStage);
+    target.x = tilt.x;
+    target.y = tilt.y;
+    target.sparkle = Math.max(target.sparkle, 0.2);
+  }
+
+  function handleOrientation(event) {
+    if (!active || event.beta == null || event.gamma == null) return;
+
+    orientationDetected = true;
+    lastOrientationAt = performance.now();
+
+    if (!baseline) {
+      baseline = { beta: event.beta, gamma: event.gamma };
+      setLiveMode('センサー操作中：現在角度を基準化しました');
+      return;
+    }
+
+    const deltaGamma = event.gamma - baseline.gamma;
+    const deltaBeta = event.beta - baseline.beta;
+    target.x = clamp(deltaGamma / 34, -1, 1);
+    target.y = clamp(deltaBeta / 34, -1, 1);
+  }
+
+  function handleMotion(event) {
+    if (!active) return;
+
+    const acceleration = event.accelerationIncludingGravity || event.acceleration || {};
+    const rotation = event.rotationRate || {};
+    const ax = Number(acceleration.x || 0);
+    const ay = Number(acceleration.y || 0);
+    const az = Number(acceleration.z || 0);
+    const ra = Number(rotation.alpha || 0);
+    const rb = Number(rotation.beta || 0);
+    const rg = Number(rotation.gamma || 0);
+    const accelerationMagnitude = Math.sqrt(ax * ax + ay * ay + az * az);
+    const rotationMagnitude = Math.sqrt(ra * ra + rb * rb + rg * rg) / 140;
+    const sparkle = clamp((accelerationMagnitude - 9.2) / 6 + rotationMagnitude, 0, 1);
+    target.sparkle = Math.max(target.sparkle, sparkle);
+  }
+
+  function bindSensorsOnce() {
+    if (sensorBound) return;
+    sensorBound = true;
+    window.addEventListener('deviceorientation', handleOrientation, { passive: true });
+    window.addEventListener('devicemotion', handleMotion, { passive: true });
+    viewerStage.addEventListener('pointermove', handleViewerPointerMove, { passive: true });
+  }
+
+  async function requestSensorAccess() {
+    const permissionRequests = [];
+
+    if (window.DeviceMotionEvent && typeof window.DeviceMotionEvent.requestPermission === 'function') {
+      permissionRequests.push(window.DeviceMotionEvent.requestPermission().catch(() => 'denied'));
+    }
+
+    if (window.DeviceOrientationEvent && typeof window.DeviceOrientationEvent.requestPermission === 'function') {
+      permissionRequests.push(window.DeviceOrientationEvent.requestPermission().catch(() => 'denied'));
+    }
+
+    if (permissionRequests.length === 0) {
+      return 'not-required';
+    }
+
+    const results = await Promise.all(permissionRequests);
+    return results.every((result) => result === 'granted') ? 'granted' : 'denied';
+  }
+
+  async function enterFullscreen() {
+    if (!viewer.requestFullscreen || document.fullscreenEnabled === false) {
+      return 'not-supported';
+    }
+
+    try {
+      await viewer.requestFullscreen({ navigationUI: 'hide' });
+      return 'entered';
+    } catch (error) {
+      console.warn('Fullscreen request failed:', error);
+      return 'failed';
+    }
+  }
+
+  function startRenderLoop() {
+    if (rafId) cancelAnimationFrame(rafId);
+
+    const render = () => {
+      if (!active) return;
+
+      const now = performance.now();
+      const idle = now / 1000;
+      const noRecentInput = now - Math.max(lastOrientationAt, lastPointerAt) > 1600;
+
+      if (noRecentInput && !orientationDetected) {
+        target.x = Math.sin(idle * 0.85) * 0.28;
+        target.y = Math.cos(idle * 0.72) * 0.22;
+      }
+
+      current.x = lerp(current.x, target.x, 0.13);
+      current.y = lerp(current.y, target.y, 0.13);
+      current.sparkle = lerp(current.sparkle, target.sparkle, 0.18);
+      target.sparkle *= 0.9;
+
+      setCardPose(fullCard, current.x, current.y, current.sparkle);
+      viewer.style.setProperty('--light-x', `${(50 + current.x * 44).toFixed(2)}%`);
+      viewer.style.setProperty('--light-y', `${(50 + current.y * 44).toFixed(2)}%`);
+      viewer.style.setProperty('--angle', `${(Math.atan2(current.y, current.x) * 180 / Math.PI + 132).toFixed(2)}deg`);
+
+      rafId = requestAnimationFrame(render);
+    };
+
+    rafId = requestAnimationFrame(render);
+  }
+
+  function resetMotionState() {
+    baseline = null;
+    orientationDetected = false;
+    lastOrientationAt = 0;
+    lastPointerAt = performance.now();
+    target.x = 0;
+    target.y = 0;
+    target.sparkle = 0;
+    current.x = 0;
+    current.y = 0;
+    current.sparkle = 0;
+    setCardPose(fullCard, 0, 0, 0);
+  }
+
+  async function startViewer() {
+    applyEffect(effectSelect.value);
+    applyFit(fitSelect.value);
+    applyStrength();
+    updateTiltLabel();
+    resetMotionState();
+
+    viewer.hidden = false;
+    viewer.setAttribute('aria-hidden', 'false');
+    document.body.classList.add('viewer-open');
+    active = true;
+    setLiveMode('権限を確認中');
+
+    const sensorPromise = requestSensorAccess();
+    const fullscreenPromise = enterFullscreen();
+
+    bindSensorsOnce();
+    startRenderLoop();
+
+    const [sensorResult, fullscreenResult] = await Promise.all([sensorPromise, fullscreenPromise]);
+
+    if (!active) return;
+
+    if (sensorResult === 'denied') {
+      setLiveMode('センサー拒否：タッチ / マウス操作に切替');
+    } else if (sensorResult === 'granted') {
+      setLiveMode('センサー許可済み：端末を傾けて操作');
+    } else {
+      setLiveMode('センサー待機中：端末を傾けてください');
+    }
+
+    if (fullscreenResult === 'failed' || fullscreenResult === 'not-supported') {
+      setStatus('全画面化できない環境では、画面全体に近い固定ビューで表示します。センサーが使えない場合はタッチ操作で光が動きます。');
+    } else {
+      setStatus('全画面表示中です。閉じる、Esc、またはブラウザの全画面解除操作で終了できます。');
+    }
+
+    window.setTimeout(() => {
+      if (!active) return;
+      if (!orientationDetected && sensorResult !== 'denied') {
+        setLiveMode('センサー未検出：タッチ / マウスでも操作可能');
+      }
+    }, 1800);
+  }
+
+  async function closeViewer({ fromFullscreenChange = false } = {}) {
+    if (!active && viewer.hidden) return;
+
+    active = false;
+    if (rafId) {
+      cancelAnimationFrame(rafId);
+      rafId = 0;
+    }
+
+    viewer.hidden = true;
+    viewer.setAttribute('aria-hidden', 'true');
+    document.body.classList.remove('viewer-open');
+    setCardPose(fullCard, 0, 0, 0);
+    setLiveMode('待機中');
+
+    if (!fromFullscreenChange && document.fullscreenElement && !fullscreenCloseInProgress) {
+      fullscreenCloseInProgress = true;
+      try {
+        await document.exitFullscreen();
+      } catch (error) {
+        console.warn('Fullscreen exit failed:', error);
+      } finally {
+        fullscreenCloseInProgress = false;
+      }
+    }
+  }
+
+  imageInput.addEventListener('change', (event) => {
+    loadFile(event.target.files && event.target.files[0]);
+  });
+
+  ['dragenter', 'dragover'].forEach((eventName) => {
+    dropZone.addEventListener(eventName, (event) => {
+      event.preventDefault();
+      dropZone.classList.add('is-dragover');
+    });
+  });
+
+  ['dragleave', 'drop'].forEach((eventName) => {
+    dropZone.addEventListener(eventName, (event) => {
+      event.preventDefault();
+      dropZone.classList.remove('is-dragover');
+    });
+  });
+
+  dropZone.addEventListener('drop', (event) => {
+    const file = event.dataTransfer.files && event.dataTransfer.files[0];
+    loadFile(file);
+  });
+
+  effectSelect.addEventListener('change', () => applyEffect(effectSelect.value));
+  fitSelect.addEventListener('change', () => applyFit(fitSelect.value));
+  strengthRange.addEventListener('input', applyStrength);
+  tiltRange.addEventListener('input', () => {
+    updateTiltLabel();
+    setCardPose(previewCard, 0, 0, 0);
+  });
+
+  previewCard.addEventListener('pointermove', handlePreviewPointerMove, { passive: true });
+  previewCard.addEventListener('pointerleave', handlePreviewPointerLeave, { passive: true });
+
+  startButton.addEventListener('click', startViewer);
+  resetButton.addEventListener('click', resetToSample);
+  exitButton.addEventListener('click', () => closeViewer());
+  recalibrateButton.addEventListener('click', () => {
+    baseline = null;
+    target.x = 0;
+    target.y = 0;
+    setLiveMode('現在角度を再基準化します');
+  });
+
+  document.addEventListener('fullscreenchange', () => {
+    if (active && !document.fullscreenElement && !fullscreenCloseInProgress) {
+      closeViewer({ fromFullscreenChange: true });
+    }
+  });
+
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && active) {
+      closeViewer();
+    }
+  });
+
+  window.addEventListener('pagehide', () => {
+    revokeCurrentObjectUrl();
+  });
+
+  loadImageUrl(sampleUrl);
+  applyEffect(effectSelect.value);
+  applyFit(fitSelect.value);
+  applyStrength();
+  updateTiltLabel();
+  setCardPose(previewCard, 0, 0, 0);
+})();
+  </script>
+</body>
+</html>
