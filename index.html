@@ -33,6 +33,10 @@
   --sheen-opacity: 0.72;
   --texture-opacity: 0.36;
   --sparkle-opacity: 0.28;
+  --card-aspect-ratio: 630 / 880;
+  --card-ratio: 0.715909;
+  --image-mask: linear-gradient(#fff, #fff);
+  --viewer-vertical-chrome: calc(env(safe-area-inset-top, 0px) + env(safe-area-inset-bottom, 0px) + 86px);
 }
 
 * {
@@ -265,34 +269,23 @@ input[type="range"] {
 }
 
 .preview-shell {
-  width: min(100%, 390px);
-  padding: clamp(16px, 5vw, 26px);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 34px;
-  background:
-    linear-gradient(145deg, rgba(255, 255, 255, 0.09), rgba(255, 255, 255, 0.035)),
-    rgba(0, 0, 0, 0.22);
-  box-shadow: var(--shadow);
+  width: min(100%, 620px);
   perspective: 1200px;
 }
 
 .holo-card {
   position: relative;
   isolation: isolate;
-  width: 100%;
-  aspect-ratio: 63 / 88;
+  width: min(100%, calc(72dvh * var(--card-ratio)));
+  max-height: 72dvh;
+  aspect-ratio: var(--card-aspect-ratio);
   overflow: hidden;
-  border-radius: clamp(18px, 4vw, 30px);
-  background:
-    radial-gradient(circle at 50% 10%, rgba(255, 255, 255, 0.12), transparent 46%),
-    linear-gradient(135deg, #111321, #070913);
-  box-shadow:
-    0 34px 74px rgba(0, 0, 0, 0.42),
-    0 0 0 1px rgba(255, 255, 255, 0.14) inset,
-    0 0 0 1px rgba(255, 255, 255, 0.08);
+  border-radius: 0;
+  background: transparent;
+  filter: drop-shadow(0 28px 52px rgba(0, 0, 0, 0.42));
   transform: perspective(1100px) rotateX(var(--rx)) rotateY(var(--ry)) translateZ(0);
   transform-style: preserve-3d;
-  transition: box-shadow 180ms ease, filter 180ms ease;
+  transition: filter 180ms ease;
   will-change: transform;
 }
 
@@ -301,8 +294,15 @@ input[type="range"] {
   content: "";
   position: absolute;
   inset: 0;
-  border-radius: inherit;
   pointer-events: none;
+  -webkit-mask-image: var(--image-mask);
+  mask-image: var(--image-mask);
+  -webkit-mask-position: center;
+  mask-position: center;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-size: 100% 100%;
+  mask-size: 100% 100%;
 }
 
 .holo-card::before {
@@ -317,9 +317,8 @@ input[type="range"] {
 .holo-card::after {
   z-index: 8;
   box-shadow:
-    inset 0 0 1px 1px rgba(255, 255, 255, 0.55),
-    inset 0 0 18px rgba(255, 255, 255, 0.12),
-    inset 0 -44px 70px rgba(0, 0, 0, 0.34);
+    inset 0 0 1px 1px rgba(255, 255, 255, 0.34),
+    inset 0 0 14px rgba(255, 255, 255, 0.08);
 }
 
 .card-image {
@@ -329,7 +328,7 @@ input[type="range"] {
   width: 100%;
   height: 100%;
   object-fit: contain;
-  background: rgba(3, 4, 10, 0.72);
+  background: transparent;
   transform: translateZ(1px) scale(1.002);
   user-select: none;
   -webkit-user-drag: none;
@@ -341,9 +340,16 @@ input[type="range"] {
 
 .foil {
   position: absolute;
-  inset: -1px;
-  border-radius: inherit;
+  inset: 0;
   pointer-events: none;
+  -webkit-mask-image: var(--image-mask);
+  mask-image: var(--image-mask);
+  -webkit-mask-position: center;
+  mask-position: center;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-size: 100% 100%;
+  mask-size: 100% 100%;
   will-change: background-position, opacity, filter;
 }
 
@@ -574,8 +580,11 @@ input[type="range"] {
 }
 
 .viewer .holo-card {
-  width: min(88vw, 520px, calc((100dvh - 112px) * 0.7159));
-  max-height: calc(100dvh - 112px);
+  width: min(
+    calc(100vw - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px) - 28px),
+    calc((100dvh - var(--viewer-vertical-chrome)) * var(--card-ratio))
+  );
+  max-height: calc(100dvh - var(--viewer-vertical-chrome));
 }
 
 @keyframes glitterJitter {
@@ -608,7 +617,7 @@ input[type="range"] {
   }
 
   .preview-shell {
-    width: min(74vw, 340px);
+    width: min(100%, 620px);
   }
 
   .controls {
@@ -621,12 +630,12 @@ input[type="range"] {
 }
 
 @media (orientation: landscape) and (max-height: 520px) {
-  .viewer {
-    grid-template-rows: auto 1fr;
+  :root {
+    --viewer-vertical-chrome: calc(env(safe-area-inset-top, 0px) + env(safe-area-inset-bottom, 0px) + 66px);
   }
 
-  .viewer .holo-card {
-    width: min(42vw, calc((100dvh - 74px) * 0.7159));
+  .viewer {
+    grid-template-rows: auto 1fr;
   }
 
   .viewer-toolbar {
@@ -823,6 +832,31 @@ input[type="range"] {
   const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
   const lerp = (from, to, amount) => from + (to - from) * amount;
 
+  function toCssUrl(url) {
+    return `url("${url.replace(/["\\]/g, '\\$&')}")`;
+  }
+
+  function applyImageMaskUrl(url) {
+    const mask = toCssUrl(url);
+    cards.forEach((card) => {
+      card.style.setProperty('--image-mask', mask);
+    });
+  }
+
+  function applyImageLayout(width, height) {
+    if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) return;
+
+    const ratio = width / height;
+    cards.forEach((card) => {
+      card.style.setProperty('--card-aspect-ratio', `${width} / ${height}`);
+      card.style.setProperty('--card-ratio', ratio.toFixed(6));
+    });
+  }
+
+  function syncImageLayoutFromImage(image) {
+    applyImageLayout(image.naturalWidth, image.naturalHeight);
+  }
+
   function setStatus(message) {
     status.textContent = message;
   }
@@ -832,8 +866,12 @@ input[type="range"] {
   }
 
   function loadImageUrl(url) {
+    applyImageMaskUrl(url);
     images.forEach((image) => {
       image.src = url;
+      if (image.complete) {
+        syncImageLayoutFromImage(image);
+      }
     });
   }
 
@@ -1180,6 +1218,9 @@ input[type="range"] {
 
   previewCard.addEventListener('pointermove', handlePreviewPointerMove, { passive: true });
   previewCard.addEventListener('pointerleave', handlePreviewPointerLeave, { passive: true });
+  images.forEach((image) => {
+    image.addEventListener('load', () => syncImageLayoutFromImage(image));
+  });
 
   startButton.addEventListener('click', startViewer);
   resetButton.addEventListener('click', resetToSample);
