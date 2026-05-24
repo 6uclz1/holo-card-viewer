@@ -83,14 +83,6 @@ body.viewer-open {
   overflow: hidden;
 }
 
-body.is-mobile-performance .panel {
-  backdrop-filter: none;
-}
-
-body.is-mobile-performance .holo-card {
-  filter: drop-shadow(0 18px 32px rgba(0, 0, 0, 0.38));
-}
-
 button,
 select,
 input {
@@ -347,6 +339,31 @@ input[type="range"] {
   transform: translateZ(1px) scale(1.002);
   user-select: none;
   -webkit-user-drag: none;
+}
+
+.holo-canvas {
+  position: absolute;
+  inset: 0;
+  z-index: 7;
+  display: none;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  transform: translateZ(2px);
+}
+
+.holo-card.is-webgl-rendered .holo-canvas {
+  display: block;
+}
+
+.holo-card.is-webgl-rendered .card-image,
+.holo-card.is-webgl-rendered .foil {
+  display: none;
+}
+
+.holo-card.is-webgl-rendered::before,
+.holo-card.is-webgl-rendered::after {
+  display: none;
 }
 
 .holo-card.is-cover .card-image {
@@ -788,28 +805,6 @@ input[type="range"] {
   transform: perspective(1100px) translateY(var(--fullscreen-offset-y)) scale(var(--fullscreen-user-scale)) rotateX(var(--rx)) rotateY(var(--ry)) translateZ(0);
 }
 
-.viewer.is-mobile-performance {
-  background: #02030a;
-}
-
-.viewer.is-mobile-performance .viewer-glow,
-.viewer.is-mobile-performance .foil::after {
-  display: none;
-}
-
-.viewer.is-mobile-performance .holo-card {
-  filter: drop-shadow(0 18px 32px rgba(0, 0, 0, 0.38));
-}
-
-.viewer.is-mobile-performance .foil {
-  will-change: opacity;
-}
-
-.viewer.is-mobile-performance .foil-texture,
-.viewer.is-mobile-performance .foil-sparkles {
-  animation-duration: 5200ms;
-}
-
 @keyframes glitterJitter {
   0%, 100% { filter: brightness(0.86); }
   50% { filter: brightness(1.55); }
@@ -975,6 +970,7 @@ input[type="range"] {
     <section class="preview-area" aria-label="プレビュー">
       <div class="preview-shell">
         <article id="previewCard" class="holo-card effect-rainbow" aria-label="ホログラフィックカードのプレビュー">
+          <canvas id="previewCanvas" class="holo-canvas" aria-hidden="true"></canvas>
           <img id="previewImage" class="card-image" alt="選択したカード画像のプレビュー" />
           <div class="foil foil-base" aria-hidden="true"></div>
           <div class="foil foil-sheen" aria-hidden="true"></div>
@@ -995,6 +991,7 @@ input[type="range"] {
 
     <div id="viewerStage" class="viewer-stage">
       <article id="fullCard" class="holo-card effect-rainbow" aria-label="ホログラフィックカード全画面表示">
+        <canvas id="fullCanvas" class="holo-canvas" aria-hidden="true"></canvas>
         <img id="fullImage" class="card-image" alt="選択したカード画像" />
         <div class="foil foil-base" aria-hidden="true"></div>
         <div class="foil foil-sheen" aria-hidden="true"></div>
@@ -1028,8 +1025,10 @@ input[type="range"] {
   const status = $('#status');
 
   const previewCard = $('#previewCard');
+  const previewCanvas = $('#previewCanvas');
   const previewImage = $('#previewImage');
   const fullCard = $('#fullCard');
+  const fullCanvas = $('#fullCanvas');
   const fullImage = $('#fullImage');
   const viewer = $('#viewer');
   const viewerStage = $('#viewerStage');
@@ -1053,9 +1052,24 @@ input[type="range"] {
   const MAX_DISPLAY_IMAGE_EDGE = 1800;
   const DISPLAY_IMAGE_QUALITY = 0.86;
   const FULLSCREEN_BLEED_SCALE = 1.08;
-  const MOBILE_RENDER_FRAME_INTERVAL = 1000 / 30;
-  const DESKTOP_RENDER_FRAME_INTERVAL = 1000 / 60;
-  const mobilePerformanceQuery = window.matchMedia?.('(pointer: coarse), (max-width: 760px)');
+  const RENDER_QUALITY_PROFILES = {
+    high: { frameInterval: 1000 / 60, maxDpr: 1.5, detail: 1, particles: 1 },
+    balanced: { frameInterval: 1000 / 45, maxDpr: 1.25, detail: 0.72, particles: 0.62 },
+    low: { frameInterval: 1000 / 30, maxDpr: 1, detail: 0.42, particles: 0.24 },
+    minimum: { frameInterval: 1000 / 24, maxDpr: 0.75, detail: 0.16, particles: 0 },
+  };
+  const RENDER_QUALITY_ORDER = ['high', 'balanced', 'low', 'minimum'];
+  const EFFECT_INDEX = {
+    rainbow: 0,
+    glitter: 1,
+    prism: 2,
+    scan: 3,
+    aurora: 4,
+    secret: 5,
+    cosmos: 6,
+    parallel: 7,
+    reverse: 8,
+  };
 
   const sampleSvg = `
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 630 880">
@@ -1092,6 +1106,8 @@ input[type="range"] {
   let active = false;
   let rafId = 0;
   let previewRafId = 0;
+  let renderTimerId = 0;
+  let previewTimerId = 0;
   let sensorBound = false;
   let baseline = null;
   let lastOrientationAt = 0;
@@ -1103,10 +1119,511 @@ input[type="range"] {
 
   const target = { x: 0, y: 0, sparkle: 0 };
   const current = { x: 0, y: 0, sparkle: 0 };
+  const previewTarget = { x: 0, y: 0, sparkle: 0 };
+  const previewCurrent = { x: 0, y: 0, sparkle: 0 };
   const previewIdleCurrent = { x: 0, y: 0, sparkle: 0 };
 
   const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
   const lerp = (from, to, amount) => from + (to - from) * amount;
+
+  function selectAdaptiveQualityProfile(metrics, currentProfileName) {
+    const { ewmaFrameCost, slowFrames, fastFrames } = metrics;
+    const currentIndex = RENDER_QUALITY_ORDER.indexOf(currentProfileName);
+    const frameBudget = RENDER_QUALITY_PROFILES[currentProfileName].frameInterval;
+
+    if ((slowFrames >= 12 || ewmaFrameCost > frameBudget * 1.25) && currentIndex < RENDER_QUALITY_ORDER.length - 1) {
+      return RENDER_QUALITY_ORDER[currentIndex + 1];
+    }
+
+    if (fastFrames >= 180 && ewmaFrameCost < frameBudget * 0.75 && currentIndex > 0) {
+      return RENDER_QUALITY_ORDER[currentIndex - 1];
+    }
+
+    return currentProfileName;
+  }
+
+  class HoloRenderer {
+    constructor({ card, canvas }) {
+      this.card = card;
+      this.canvas = canvas;
+      this.gl = canvas.getContext('webgl', {
+        alpha: true,
+        antialias: false,
+        depth: false,
+        stencil: false,
+        preserveDrawingBuffer: false,
+        premultipliedAlpha: true,
+      }) || canvas.getContext('experimental-webgl', {
+        alpha: true,
+        antialias: false,
+        depth: false,
+        stencil: false,
+        preserveDrawingBuffer: false,
+        premultipliedAlpha: true,
+      });
+      this.enabled = false;
+      this.textureReady = false;
+      this.imageWidth = 1;
+      this.imageHeight = 1;
+      this.effectName = 'rainbow';
+      this.fitMode = 'contain';
+      this.strength = Number(strengthRange.value) / 100;
+      this.qualityProfileName = 'high';
+      this.ewmaFrameCost = 0;
+      this.slowFrames = 0;
+      this.fastFrames = 0;
+      this.sizeDirty = true;
+
+      if (this.gl) {
+        this.enabled = this.initialize();
+      }
+
+      this.syncCardClass();
+      this.canvas.addEventListener('webglcontextlost', (event) => {
+        event.preventDefault();
+        this.disable();
+      });
+    }
+
+    initialize() {
+      try {
+        const gl = this.gl;
+        this.program = this.createProgram(this.vertexShaderSource(), this.fragmentShaderSource());
+        this.positionBuffer = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, this.positionBuffer);
+        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([
+          -1, -1,
+          1, -1,
+          -1, 1,
+          -1, 1,
+          1, -1,
+          1, 1,
+        ]), gl.STATIC_DRAW);
+
+        this.texture = gl.createTexture();
+        gl.bindTexture(gl.TEXTURE_2D, this.texture);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array([0, 0, 0, 0]));
+
+        this.attributes = {
+          position: gl.getAttribLocation(this.program, 'aPosition'),
+        };
+        this.uniforms = {
+          image: gl.getUniformLocation(this.program, 'uImage'),
+          canvasSize: gl.getUniformLocation(this.program, 'uCanvasSize'),
+          imageSize: gl.getUniformLocation(this.program, 'uImageSize'),
+          fitMode: gl.getUniformLocation(this.program, 'uFitMode'),
+          effect: gl.getUniformLocation(this.program, 'uEffect'),
+          strength: gl.getUniformLocation(this.program, 'uStrength'),
+          time: gl.getUniformLocation(this.program, 'uTime'),
+          tilt: gl.getUniformLocation(this.program, 'uTilt'),
+          light: gl.getUniformLocation(this.program, 'uLight'),
+          shift: gl.getUniformLocation(this.program, 'uShift'),
+          angle: gl.getUniformLocation(this.program, 'uAngle'),
+          sparkle: gl.getUniformLocation(this.program, 'uSparkle'),
+          ambientOpacity: gl.getUniformLocation(this.program, 'uAmbientOpacity'),
+          detail: gl.getUniformLocation(this.program, 'uDetail'),
+          particles: gl.getUniformLocation(this.program, 'uParticles'),
+        };
+        return true;
+      } catch (error) {
+        console.warn('WebGL renderer initialization failed:', error);
+        return false;
+      }
+    }
+
+    vertexShaderSource() {
+      return `
+        attribute vec2 aPosition;
+        varying vec2 vUv;
+
+        void main() {
+          vUv = aPosition * 0.5 + 0.5;
+          gl_Position = vec4(aPosition, 0.0, 1.0);
+        }
+      `;
+    }
+
+    fragmentShaderSource() {
+      return `
+        precision mediump float;
+
+        uniform sampler2D uImage;
+        uniform vec2 uCanvasSize;
+        uniform vec2 uImageSize;
+        uniform float uFitMode;
+        uniform float uEffect;
+        uniform float uStrength;
+        uniform float uTime;
+        uniform vec2 uTilt;
+        uniform vec2 uLight;
+        uniform vec2 uShift;
+        uniform float uAngle;
+        uniform float uSparkle;
+        uniform float uAmbientOpacity;
+        uniform float uDetail;
+        uniform float uParticles;
+        varying vec2 vUv;
+
+        float hash(vec2 point) {
+          return fract(sin(dot(point, vec2(127.1, 311.7))) * 43758.5453123);
+        }
+
+        vec3 hsv2rgb(vec3 c) {
+          vec3 p = abs(fract(c.xxx + vec3(0.0, 0.666667, 0.333333)) * 6.0 - 3.0);
+          return c.z * mix(vec3(1.0), clamp(p - 1.0, 0.0, 1.0), c.y);
+        }
+
+        vec3 screenBlend(vec3 base, vec3 blend) {
+          return 1.0 - (1.0 - base) * (1.0 - blend);
+        }
+
+        vec4 sampleCardImage(vec2 uv) {
+          float canvasAspect = uCanvasSize.x / max(uCanvasSize.y, 1.0);
+          float imageAspect = uImageSize.x / max(uImageSize.y, 1.0);
+          vec2 displaySize = vec2(1.0);
+
+          if (uFitMode < 0.5) {
+            if (imageAspect > canvasAspect) {
+              displaySize.y = canvasAspect / imageAspect;
+            } else {
+              displaySize.x = imageAspect / canvasAspect;
+            }
+          } else {
+            if (imageAspect > canvasAspect) {
+              displaySize.x = imageAspect / canvasAspect;
+            } else {
+              displaySize.y = canvasAspect / imageAspect;
+            }
+          }
+
+          vec2 imageUv = (uv - (1.0 - displaySize) * 0.5) / displaySize;
+          if (imageUv.x < 0.0 || imageUv.x > 1.0 || imageUv.y < 0.0 || imageUv.y > 1.0) {
+            return vec4(0.0);
+          }
+
+          return texture2D(uImage, imageUv);
+        }
+
+        vec3 effectColor(vec2 uv, float ridge, float grain) {
+          float sweep = fract((uAngle / 6.2831853) + dot(uv - 0.5, vec2(0.72, -0.48)) + uTime * 0.035);
+          vec3 rainbow = hsv2rgb(vec3(fract(sweep + ridge * 0.12), 0.88, 1.0));
+          vec3 glitter = mix(vec3(0.98, 0.36, 0.82), vec3(0.2, 0.95, 1.0), smoothstep(0.25, 0.9, grain));
+          vec3 prism = hsv2rgb(vec3(fract(floor((uv.x + uv.y + ridge) * 9.0) / 9.0 + uTime * 0.02), 0.78, 1.0));
+          vec3 scan = mix(vec3(0.0, 0.86, 1.0), vec3(1.0, 0.18, 0.72), smoothstep(-0.4, 0.6, sin((uv.y + uTime * 0.18) * 34.0)));
+          vec3 aurora = mix(vec3(0.2, 1.0, 0.74), vec3(0.58, 0.38, 1.0), smoothstep(-0.8, 0.8, sin((uv.x * 4.0 + uv.y * 2.2 + uTime) * 1.7)));
+          vec3 secret = mix(vec3(1.0, 0.92, 0.35), vec3(1.0, 0.18, 0.74), smoothstep(0.3, 0.95, abs(sin((uv.x - uv.y) * 26.0))));
+          vec3 cosmos = mix(vec3(0.26, 0.58, 1.0), vec3(1.0, 0.76, 0.28), smoothstep(0.72, 1.0, grain + ridge * 0.4));
+          vec3 parallel = mix(vec3(0.74, 1.0, 1.0), vec3(1.0, 0.52, 0.86), step(0.5, fract((uv.x + uTime * 0.025) * 18.0)));
+          vec3 reverse = mix(vec3(0.9, 1.0, 0.74), vec3(0.16, 0.78, 1.0), smoothstep(-0.6, 0.8, cos((uv.x + uv.y) * 18.0 + uAngle)));
+
+          if (uEffect < 0.5) return rainbow;
+          if (uEffect < 1.5) return glitter;
+          if (uEffect < 2.5) return prism;
+          if (uEffect < 3.5) return scan;
+          if (uEffect < 4.5) return aurora;
+          if (uEffect < 5.5) return secret;
+          if (uEffect < 6.5) return cosmos;
+          if (uEffect < 7.5) return parallel;
+          return reverse;
+        }
+
+        void main() {
+          vec4 base = sampleCardImage(vUv);
+          if (base.a <= 0.003) {
+            discard;
+          }
+
+          vec2 centered = vUv - 0.5;
+          vec2 lightVector = normalize(vec2(cos(uAngle), sin(uAngle)));
+          float lightDistance = distance(vUv, uLight);
+          float ridge = sin((dot(vUv + uShift * 0.35, lightVector) + uTime * 0.055) * (38.0 + 34.0 * uDetail));
+          float band = smoothstep(0.18, 0.0, abs(dot(vUv - uLight, lightVector) + ridge * 0.018));
+          float dome = 1.0 - smoothstep(0.32, 0.86, length(centered + uTilt * 0.08));
+          float grain = hash(floor((vUv + uShift * 0.08 + uTime * 0.012) * (42.0 + 74.0 * uDetail)));
+          float sparkle = step(1.0 - (0.04 + uSparkle * 0.14) * uParticles, grain) * uParticles;
+          float highlight = smoothstep(0.44, 0.0, lightDistance) * (0.12 + uStrength * 0.28 + uSparkle * 0.12);
+          float foil = clamp(0.05 + uStrength * 0.20 + band * 0.24 + dome * 0.08 + sparkle * 0.22 + uAmbientOpacity * 0.28, 0.0, 0.58);
+          vec3 holo = effectColor(vUv, ridge, grain);
+          vec3 screened = screenBlend(base.rgb, holo * (0.28 + foil * 0.72));
+          vec3 color = mix(base.rgb, screened, foil);
+          color += vec3(highlight) * (0.22 + uStrength * 0.22);
+          color += holo * sparkle * (0.10 + uStrength * 0.12);
+          float luminance = dot(base.rgb, vec3(0.299, 0.587, 0.114));
+          color = mix(color, base.rgb, smoothstep(0.62, 0.95, luminance) * 0.5);
+
+          gl_FragColor = vec4(clamp(color, 0.0, 1.0), base.a);
+        }
+      `;
+    }
+
+    compileShader(type, source) {
+      const gl = this.gl;
+      const shader = gl.createShader(type);
+      gl.shaderSource(shader, source);
+      gl.compileShader(shader);
+
+      if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+        const error = gl.getShaderInfoLog(shader);
+        gl.deleteShader(shader);
+        throw new Error(error || 'Shader compilation failed');
+      }
+
+      return shader;
+    }
+
+    createProgram(vertexSource, fragmentSource) {
+      const gl = this.gl;
+      const vertexShader = this.compileShader(gl.VERTEX_SHADER, vertexSource);
+      const fragmentShader = this.compileShader(gl.FRAGMENT_SHADER, fragmentSource);
+      const program = gl.createProgram();
+      gl.attachShader(program, vertexShader);
+      gl.attachShader(program, fragmentShader);
+      gl.linkProgram(program);
+      gl.deleteShader(vertexShader);
+      gl.deleteShader(fragmentShader);
+
+      if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+        const error = gl.getProgramInfoLog(program);
+        gl.deleteProgram(program);
+        throw new Error(error || 'Program linking failed');
+      }
+
+      return program;
+    }
+
+    disable() {
+      this.enabled = false;
+      this.textureReady = false;
+      this.syncCardClass();
+    }
+
+    syncCardClass() {
+      this.card.classList.toggle('is-webgl-rendered', this.enabled && this.textureReady);
+      this.card.setAttribute('data-render-quality', this.qualityProfileName);
+    }
+
+    createTextureSource(image) {
+      const isSvg = image.dataset.sourceType === 'image/svg+xml'
+        || image.currentSrc.includes('image/svg+xml')
+        || image.src.includes('image/svg+xml');
+
+      if (!isSvg) {
+        return {
+          source: image,
+          width: image.naturalWidth,
+          height: image.naturalHeight,
+        };
+      }
+
+      const sourceEdge = Math.max(image.naturalWidth, image.naturalHeight);
+      const scale = Math.min(8, Math.max(1, 1200 / Math.max(sourceEdge, 1)));
+      const width = Math.max(1, Math.round(image.naturalWidth * scale));
+      const height = Math.max(1, Math.round(image.naturalHeight * scale));
+      const canvas = document.createElement('canvas');
+      const context = canvas.getContext('2d', { alpha: true });
+
+      if (!context) {
+        return {
+          source: image,
+          width: image.naturalWidth,
+          height: image.naturalHeight,
+        };
+      }
+
+      canvas.width = width;
+      canvas.height = height;
+      context.imageSmoothingEnabled = true;
+      context.imageSmoothingQuality = 'high';
+      context.drawImage(image, 0, 0, width, height);
+
+      return { source: canvas, width, height };
+    }
+
+    setImage(image) {
+      if (!image || !image.complete || !image.naturalWidth || !image.naturalHeight) return;
+
+      const textureSource = this.createTextureSource(image);
+      this.imageWidth = textureSource.width;
+      this.imageHeight = textureSource.height;
+
+      if (!this.enabled) return;
+
+      try {
+        const gl = this.gl;
+        gl.bindTexture(gl.TEXTURE_2D, this.texture);
+        gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+        gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false);
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, textureSource.source);
+        this.textureReady = true;
+        this.markSizeDirty();
+        this.syncCardClass();
+      } catch (error) {
+        console.warn('WebGL texture upload failed:', error);
+        this.disable();
+      }
+    }
+
+    setEffect(effectName) {
+      this.effectName = effectName;
+    }
+
+    setFit(fitMode) {
+      this.fitMode = fitMode;
+    }
+
+    setStrength(strength) {
+      this.strength = strength;
+    }
+
+    markSizeDirty() {
+      this.sizeDirty = true;
+    }
+
+    resetPerformance({ restoreQuality = false } = {}) {
+      this.ewmaFrameCost = 0;
+      this.slowFrames = 0;
+      this.fastFrames = 0;
+
+      if (restoreQuality) {
+        this.setQualityProfile('high');
+      }
+    }
+
+    getQualityProfile() {
+      return RENDER_QUALITY_PROFILES[this.qualityProfileName];
+    }
+
+    getFrameInterval() {
+      return this.getQualityProfile().frameInterval;
+    }
+
+    setQualityProfile(profileName) {
+      if (!RENDER_QUALITY_PROFILES[profileName] || profileName === this.qualityProfileName) return;
+
+      this.qualityProfileName = profileName;
+      this.slowFrames = 0;
+      this.fastFrames = 0;
+      this.markSizeDirty();
+      this.syncCardClass();
+    }
+
+    recordFrameCost(frameCost) {
+      if (!this.enabled) return;
+
+      const profile = this.getQualityProfile();
+      const frameBudget = profile.frameInterval;
+      this.ewmaFrameCost = this.ewmaFrameCost
+        ? this.ewmaFrameCost * 0.88 + frameCost * 0.12
+        : frameCost;
+      this.slowFrames = frameCost > frameBudget * 1.12 || this.ewmaFrameCost > frameBudget * 1.08
+        ? this.slowFrames + 1
+        : 0;
+      this.fastFrames = frameCost < frameBudget * 0.62 && this.ewmaFrameCost < frameBudget * 0.75
+        ? this.fastFrames + 1
+        : 0;
+
+      const nextProfile = selectAdaptiveQualityProfile({
+        ewmaFrameCost: this.ewmaFrameCost,
+        slowFrames: this.slowFrames,
+        fastFrames: this.fastFrames,
+      }, this.qualityProfileName);
+      this.setQualityProfile(nextProfile);
+    }
+
+    syncCanvasSize() {
+      if (!this.enabled) return false;
+
+      const profile = this.getQualityProfile();
+      const dpr = Math.min(window.devicePixelRatio || 1, profile.maxDpr);
+      const width = Math.max(1, Math.round(this.card.clientWidth * dpr));
+      const height = Math.max(1, Math.round(this.card.clientHeight * dpr));
+
+      if (this.canvas.width !== width || this.canvas.height !== height) {
+        this.canvas.width = width;
+        this.canvas.height = height;
+        this.gl.viewport(0, 0, width, height);
+      }
+
+      this.sizeDirty = false;
+      return width > 1 && height > 1;
+    }
+
+    render(now, input, surface) {
+      if (!this.enabled || !this.textureReady) return false;
+      if (this.sizeDirty && !this.syncCanvasSize()) return false;
+
+      const gl = this.gl;
+      const profile = this.getQualityProfile();
+      gl.useProgram(this.program);
+      gl.bindBuffer(gl.ARRAY_BUFFER, this.positionBuffer);
+      gl.enableVertexAttribArray(this.attributes.position);
+      gl.vertexAttribPointer(this.attributes.position, 2, gl.FLOAT, false, 0, 0);
+      gl.activeTexture(gl.TEXTURE0);
+      gl.bindTexture(gl.TEXTURE_2D, this.texture);
+      gl.uniform1i(this.uniforms.image, 0);
+      gl.uniform2f(this.uniforms.canvasSize, this.canvas.width, this.canvas.height);
+      gl.uniform2f(this.uniforms.imageSize, this.imageWidth, this.imageHeight);
+      gl.uniform1f(this.uniforms.fitMode, this.fitMode === 'cover' ? 1 : 0);
+      gl.uniform1f(this.uniforms.effect, EFFECT_INDEX[this.effectName] ?? 0);
+      gl.uniform1f(this.uniforms.strength, this.strength);
+      gl.uniform1f(this.uniforms.time, now / 1000);
+      gl.uniform2f(this.uniforms.tilt, input.x, input.y);
+      gl.uniform2f(this.uniforms.light, surface.lightX / 100, surface.lightY / 100);
+      gl.uniform2f(this.uniforms.shift, surface.shiftX / 100, surface.shiftY / 100);
+      gl.uniform1f(this.uniforms.angle, surface.angle * Math.PI / 180);
+      gl.uniform1f(this.uniforms.sparkle, input.sparkle);
+      gl.uniform1f(this.uniforms.ambientOpacity, surface.ambientOpacity);
+      gl.uniform1f(this.uniforms.detail, profile.detail);
+      gl.uniform1f(this.uniforms.particles, profile.particles);
+      gl.disable(gl.DEPTH_TEST);
+      gl.disable(gl.CULL_FACE);
+      gl.disable(gl.BLEND);
+      gl.clearColor(0, 0, 0, 0);
+      gl.clear(gl.COLOR_BUFFER_BIT);
+      gl.drawArrays(gl.TRIANGLES, 0, 6);
+      return true;
+    }
+  }
+
+  const previewRenderer = new HoloRenderer({ card: previewCard, canvas: previewCanvas });
+  const fullRenderer = new HoloRenderer({ card: fullCard, canvas: fullCanvas });
+  const renderers = [previewRenderer, fullRenderer];
+  let rectCache = new WeakMap();
+
+  function invalidateRectCache() {
+    rectCache = new WeakMap();
+    renderers.forEach((renderer) => renderer.markSizeDirty());
+  }
+
+  function getCachedElementRect(element) {
+    const cached = rectCache.get(element);
+    if (cached) return cached;
+
+    const rect = element.getBoundingClientRect();
+    const snapshot = {
+      left: rect.left,
+      top: rect.top,
+      width: rect.width,
+      height: rect.height,
+    };
+    rectCache.set(element, snapshot);
+    return snapshot;
+  }
+
+  function getRendererForImage(image) {
+    if (image === previewImage) return previewRenderer;
+    if (image === fullImage) return fullRenderer;
+    return null;
+  }
+
+  function uploadImageToRenderer(image) {
+    const renderer = getRendererForImage(image);
+    renderer?.setImage(image);
+  }
 
   function toCssUrl(url) {
     return `url("${url.replace(/["\\]/g, '\\$&')}")`;
@@ -1127,6 +1644,7 @@ input[type="range"] {
       card.style.setProperty('--card-aspect-ratio', `${width} / ${height}`);
       card.style.setProperty('--card-ratio', ratio.toFixed(6));
     });
+    invalidateRectCache();
     syncFullscreenFit();
   }
 
@@ -1163,6 +1681,7 @@ input[type="range"] {
     viewer.style.setProperty('--fullscreen-card-width', `${(fit.width * FULLSCREEN_BLEED_SCALE).toFixed(2)}px`);
     viewer.style.setProperty('--fullscreen-card-height', `${(fit.height * FULLSCREEN_BLEED_SCALE).toFixed(2)}px`);
     viewer.dataset.fitAxis = fit.axis;
+    invalidateRectCache();
   }
 
   function applyFullscreenAdjustments() {
@@ -1183,12 +1702,14 @@ input[type="range"] {
     liveMode.textContent = message;
   }
 
-  function loadImageUrl(url) {
+  function loadImageUrl(url, { sourceType = '' } = {}) {
     applyImageMaskUrl(url);
     images.forEach((image) => {
+      image.dataset.sourceType = sourceType || (url.includes('image/svg+xml') ? 'image/svg+xml' : '');
       image.src = url;
-      if (image.complete) {
+      if (image.complete && image.naturalWidth) {
         syncImageLayoutFromImage(image);
+        uploadImageToRenderer(image);
       }
     });
   }
@@ -1282,7 +1803,7 @@ input[type="range"] {
 
     revokeCurrentObjectUrl();
     currentObjectUrl = nextUrl;
-    loadImageUrl(nextUrl);
+    loadImageUrl(nextUrl, { sourceType: file.type });
     fileName.textContent = `${file.name} / ${(file.size / 1024 / 1024).toFixed(2)} MB`;
     setStatus('画像を読み込みました。エフェクトを選び、実行ボタンで全画面表示できます。');
   }
@@ -1301,12 +1822,15 @@ input[type="range"] {
       card.classList.remove(...effectClasses);
       card.classList.add(className);
     });
+    renderers.forEach((renderer) => renderer.setEffect(effectName));
   }
 
   function applyFit(fitMode) {
     cards.forEach((card) => {
       card.classList.toggle('is-cover', fitMode === 'cover');
     });
+    renderers.forEach((renderer) => renderer.setFit(fitMode));
+    invalidateRectCache();
   }
 
   function applyStrength() {
@@ -1323,6 +1847,7 @@ input[type="range"] {
       card.style.setProperty('--highlight-glow', (0.06 + strength * 0.16).toFixed(3));
       card.style.setProperty('--rim-opacity', (0.07 + strength * 0.16).toFixed(3));
     });
+    renderers.forEach((renderer) => renderer.setStrength(strength));
   }
 
   function updateTiltLabel() {
@@ -1398,26 +1923,21 @@ input[type="range"] {
     };
   }
 
-  function shouldUseMobilePerformanceMode() {
-    return Boolean(mobilePerformanceQuery?.matches);
+  function getRenderFrameInterval(renderer = fullRenderer) {
+    return renderer.getFrameInterval();
   }
 
-  function getRenderFrameInterval() {
-    return shouldUseMobilePerformanceMode() ? MOBILE_RENDER_FRAME_INTERVAL : DESKTOP_RENDER_FRAME_INTERVAL;
-  }
-
-  function syncPerformanceMode() {
-    const isMobilePerformance = shouldUseMobilePerformanceMode();
-    document.body.classList.toggle('is-mobile-performance', isMobilePerformance);
-    viewer.classList.toggle('is-mobile-performance', isMobilePerformance);
-  }
-
-  function setCardPose(card, x, y, sparkle = 0, options = {}) {
-    const surface = computeSurfaceLight(x, y, sparkle, options.ambient);
+  function applyCardTransform(card, surface) {
     const maxTilt = getMaxTiltDegrees();
 
     card.style.setProperty('--rx', `${(-surface.normalizedY * maxTilt).toFixed(2)}deg`);
     card.style.setProperty('--ry', `${(surface.normalizedX * maxTilt).toFixed(2)}deg`);
+  }
+
+  function setCardPose(card, x, y, sparkle = 0, options = {}) {
+    const surface = computeSurfaceLight(x, y, sparkle, options.ambient);
+
+    applyCardTransform(card, surface);
     card.style.setProperty('--light-x', `${surface.lightX.toFixed(2)}%`);
     card.style.setProperty('--light-y', `${surface.lightY.toFixed(2)}%`);
     card.style.setProperty('--curve-x', `${surface.curveX.toFixed(2)}%`);
@@ -1443,7 +1963,8 @@ input[type="range"] {
   }
 
   function pointerToCardTilt(event, element) {
-    const rect = element.getBoundingClientRect();
+    const rect = getCachedElementRect(element);
+    if (!rect.width || !rect.height) return { x: 0, y: 0 };
     const x = ((event.clientX - rect.left) / rect.width - 0.5) * 2;
     const y = ((event.clientY - rect.top) / rect.height - 0.5) * 2;
     return { x: clamp(x, -1, 1), y: clamp(y, -1, 1) };
@@ -1452,11 +1973,15 @@ input[type="range"] {
   function handlePreviewPointerMove(event) {
     lastPreviewPointerAt = performance.now();
     const tilt = pointerToCardTilt(event, previewCard);
-    setCardPose(previewCard, tilt.x, tilt.y, 0.18);
+    previewTarget.x = tilt.x;
+    previewTarget.y = tilt.y;
+    previewTarget.sparkle = Math.max(previewTarget.sparkle, 0.18);
   }
 
   function handlePreviewPointerLeave() {
     lastPreviewPointerAt = performance.now() - 900;
+    previewTarget.x = 0;
+    previewTarget.y = 0;
   }
 
   function handleViewerPointerMove(event) {
@@ -1551,20 +2076,34 @@ input[type="range"] {
 
   function startRenderLoop() {
     if (rafId) cancelAnimationFrame(rafId);
+    if (renderTimerId) clearTimeout(renderTimerId);
     let lastFrameAt = 0;
 
+    const queueNextFrame = (delay = 0) => {
+      if (renderTimerId) clearTimeout(renderTimerId);
+      renderTimerId = window.setTimeout(() => {
+        renderTimerId = 0;
+        rafId = requestAnimationFrame(render);
+      }, delay);
+    };
+
     const render = () => {
-      if (!active) return;
+      if (!active) {
+        rafId = 0;
+        return;
+      }
 
       const now = performance.now();
-      const frameInterval = getRenderFrameInterval();
+      const frameInterval = fullRenderer.getFrameInterval();
+      const elapsed = lastFrameAt ? now - lastFrameAt : frameInterval;
 
-      if (lastFrameAt && now - lastFrameAt < frameInterval) {
-        rafId = requestAnimationFrame(render);
+      if (lastFrameAt && elapsed < frameInterval * 0.92) {
+        queueNextFrame(Math.max(0, frameInterval - elapsed));
         return;
       }
 
       lastFrameAt = now;
+      const frameStart = performance.now();
       const ambientMotion = computeAmbientMotion(now, 1);
 
       current.x = lerp(current.x, target.x, 0.13);
@@ -1572,46 +2111,89 @@ input[type="range"] {
       current.sparkle = lerp(current.sparkle, target.sparkle, 0.18);
       target.sparkle *= 0.9;
 
-      const surface = setCardPose(fullCard, current.x, current.y, current.sparkle, { ambient: ambientMotion });
+      let surface;
+      if (fullRenderer.enabled && fullRenderer.textureReady) {
+        surface = computeSurfaceLight(current.x, current.y, current.sparkle, ambientMotion);
+        applyCardTransform(fullCard, surface);
+        fullRenderer.render(now, current, surface);
+      } else {
+        surface = setCardPose(fullCard, current.x, current.y, current.sparkle, { ambient: ambientMotion });
+      }
       viewer.style.setProperty('--light-x', `${surface.lightX.toFixed(2)}%`);
       viewer.style.setProperty('--light-y', `${surface.lightY.toFixed(2)}%`);
       viewer.style.setProperty('--angle', `${surface.angle.toFixed(2)}deg`);
 
-      rafId = requestAnimationFrame(render);
+      fullRenderer.recordFrameCost(Math.max(performance.now() - frameStart, elapsed));
+      queueNextFrame(Math.max(0, fullRenderer.getFrameInterval() - (performance.now() - now)));
     };
 
-    rafId = requestAnimationFrame(render);
+    queueNextFrame(0);
   }
 
   function startPreviewIdleLoop() {
     if (previewRafId) cancelAnimationFrame(previewRafId);
+    if (previewTimerId) clearTimeout(previewTimerId);
     let lastFrameAt = 0;
+
+    const queueNextFrame = (delay = 0) => {
+      if (previewTimerId) clearTimeout(previewTimerId);
+      previewTimerId = window.setTimeout(() => {
+        previewTimerId = 0;
+        previewRafId = requestAnimationFrame(render);
+      }, delay);
+    };
 
     const render = () => {
       const now = performance.now();
-      const frameInterval = getRenderFrameInterval();
+      if (active || document.hidden) {
+        previewRenderer.resetPerformance();
+        lastFrameAt = 0;
+        queueNextFrame(220);
+        return;
+      }
 
-      if (lastFrameAt && now - lastFrameAt < frameInterval) {
-        previewRafId = requestAnimationFrame(render);
+      const frameInterval = previewRenderer.getFrameInterval();
+      const elapsed = lastFrameAt ? now - lastFrameAt : frameInterval;
+
+      if (lastFrameAt && elapsed < frameInterval * 0.92) {
+        queueNextFrame(Math.max(0, frameInterval - elapsed));
         return;
       }
 
       lastFrameAt = now;
+      const frameStart = performance.now();
       const pointerRecentlyUpdated = now - lastPreviewPointerAt < 1100;
 
-      if (!pointerRecentlyUpdated && !active) {
+      if (!pointerRecentlyUpdated) {
         const rawIdlePose = computeIdlePose(now, 0.72);
         previewIdleCurrent.x = lerp(previewIdleCurrent.x, rawIdlePose.x, 0.08);
         previewIdleCurrent.y = lerp(previewIdleCurrent.y, rawIdlePose.y, 0.08);
         previewIdleCurrent.sparkle = lerp(previewIdleCurrent.sparkle, rawIdlePose.sparkle, 0.12);
-        const idlePose = previewIdleCurrent;
+        previewTarget.x = previewIdleCurrent.x;
+        previewTarget.y = previewIdleCurrent.y;
+        previewTarget.sparkle = previewIdleCurrent.sparkle;
+      } else {
+        previewTarget.sparkle *= 0.88;
+      }
+
+      previewCurrent.x = lerp(previewCurrent.x, previewTarget.x, 0.16);
+      previewCurrent.y = lerp(previewCurrent.y, previewTarget.y, 0.16);
+      previewCurrent.sparkle = lerp(previewCurrent.sparkle, previewTarget.sparkle, 0.18);
+      const idlePose = previewCurrent;
+
+      if (previewRenderer.enabled && previewRenderer.textureReady) {
+        const surface = computeSurfaceLight(idlePose.x, idlePose.y, idlePose.sparkle);
+        applyCardTransform(previewCard, surface);
+        previewRenderer.render(now, idlePose, surface);
+      } else {
         setCardPose(previewCard, idlePose.x, idlePose.y, idlePose.sparkle);
       }
 
-      previewRafId = requestAnimationFrame(render);
+      previewRenderer.recordFrameCost(Math.max(performance.now() - frameStart, elapsed));
+      queueNextFrame(Math.max(0, previewRenderer.getFrameInterval() - (performance.now() - now)));
     };
 
-    previewRafId = requestAnimationFrame(render);
+    queueNextFrame(0);
   }
 
   function resetMotionState() {
@@ -1625,6 +2207,7 @@ input[type="range"] {
     current.x = 0;
     current.y = 0;
     current.sparkle = 0;
+    fullRenderer.resetPerformance({ restoreQuality: true });
     setCardPose(fullCard, 0, 0, 0);
   }
 
@@ -1636,7 +2219,7 @@ input[type="range"] {
     applyFullscreenAdjustments();
     resetMotionState();
     syncFullscreenFit();
-    syncPerformanceMode();
+    invalidateRectCache();
 
     viewer.hidden = false;
     viewer.setAttribute('aria-hidden', 'false');
@@ -1683,6 +2266,10 @@ input[type="range"] {
     if (rafId) {
       cancelAnimationFrame(rafId);
       rafId = 0;
+    }
+    if (renderTimerId) {
+      clearTimeout(renderTimerId);
+      renderTimerId = 0;
     }
 
     viewer.hidden = true;
@@ -1739,7 +2326,11 @@ input[type="range"] {
   previewCard.addEventListener('pointermove', handlePreviewPointerMove, { passive: true });
   previewCard.addEventListener('pointerleave', handlePreviewPointerLeave, { passive: true });
   images.forEach((image) => {
-    image.addEventListener('load', () => syncImageLayoutFromImage(image));
+    image.addEventListener('load', () => {
+      syncImageLayoutFromImage(image);
+      uploadImageToRenderer(image);
+      invalidateRectCache();
+    });
   });
 
   startButton.addEventListener('click', startViewer);
@@ -1764,19 +2355,21 @@ input[type="range"] {
     }
   });
 
+  window.addEventListener('resize', invalidateRectCache, { passive: true });
   window.addEventListener('resize', syncFullscreenFit, { passive: true });
+  window.visualViewport?.addEventListener('resize', invalidateRectCache, { passive: true });
   window.visualViewport?.addEventListener('resize', syncFullscreenFit, { passive: true });
 
-  if (mobilePerformanceQuery) {
-    if (typeof mobilePerformanceQuery.addEventListener === 'function') {
-      mobilePerformanceQuery.addEventListener('change', syncPerformanceMode);
-    } else if (typeof mobilePerformanceQuery.addListener === 'function') {
-      mobilePerformanceQuery.addListener(syncPerformanceMode);
-    }
-  }
+  document.addEventListener('visibilitychange', () => {
+    previewRenderer.resetPerformance();
+    fullRenderer.resetPerformance();
+  });
 
   window.addEventListener('pagehide', () => {
     if (previewRafId) cancelAnimationFrame(previewRafId);
+    if (previewTimerId) clearTimeout(previewTimerId);
+    if (rafId) cancelAnimationFrame(rafId);
+    if (renderTimerId) clearTimeout(renderTimerId);
     revokeCurrentObjectUrl();
   });
 
@@ -1786,7 +2379,6 @@ input[type="range"] {
   applyStrength();
   updateTiltLabel();
   applyFullscreenAdjustments();
-  syncPerformanceMode();
   setCardPose(previewCard, 0, 0, 0);
   syncFullscreenFit();
   startPreviewIdleLoop();
