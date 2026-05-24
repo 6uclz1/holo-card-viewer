@@ -36,6 +36,28 @@ test('fullscreen card deliberately bleeds past the exact viewport fit', () => {
   assert.doesNotMatch(viewerCardRule, /max-width:/);
 });
 
+test('fullscreen stage can render under iPhone safe areas', () => {
+  const viewerStageRule = html.match(/\.viewer-stage \{[^}]+\}/s)?.[0] ?? '';
+
+  assert.match(html, /viewport-fit=cover/);
+  assert.match(viewerStageRule, /padding:\s*0/);
+  assert.doesNotMatch(viewerStageRule, /safe-area-inset-top/);
+  assert.doesNotMatch(viewerStageRule, /safe-area-inset-bottom/);
+});
+
+test('fullscreen card has user controlled scale and vertical offset sliders', () => {
+  const viewerCardRule = html.match(/\.viewer \.holo-card \{[^}]+\}/s)?.[0] ?? '';
+
+  assert.match(html, /id="fullscreenScaleRange"/);
+  assert.match(html, /id="fullscreenOffsetRange"/);
+  assert.match(html, /--fullscreen-user-scale/);
+  assert.match(html, /--fullscreen-offset-y/);
+  assert.match(html, /function applyFullscreenAdjustments/);
+  assert.match(html, /fullscreenScaleRange\.addEventListener\('input', applyFullscreenAdjustments\)/);
+  assert.match(html, /fullscreenOffsetRange\.addEventListener\('input', applyFullscreenAdjustments\)/);
+  assert.match(viewerCardRule, /translateY\(var\(--fullscreen-offset-y\)\) scale\(var\(--fullscreen-user-scale\)\)/);
+});
+
 test('fullscreen background stays blank behind the masked image effect', () => {
   const viewerRule = html.match(/\.viewer \{[^}]+\}/s)?.[0] ?? '';
   const viewerGlowRule = html.match(/\.viewer-glow \{[^}]+\}/s)?.[0] ?? '';
