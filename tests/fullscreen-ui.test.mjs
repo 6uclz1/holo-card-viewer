@@ -45,11 +45,15 @@ test('fullscreen stage can render under iPhone safe areas', () => {
   assert.doesNotMatch(viewerStageRule, /safe-area-inset-bottom/);
 });
 
-test('fullscreen card has user controlled scale and vertical offset sliders', () => {
+test('main effect controls expose fullscreen scale and vertical offset sliders', () => {
+  const controlsMarkup = html.match(/<div class="controls" aria-label="ホログラフィック設定">(?<body>[\s\S]+?)\n      <\/div>/)?.groups?.body ?? '';
   const viewerCardRule = html.match(/\.viewer \.holo-card \{[^}]+\}/s)?.[0] ?? '';
+  const viewerToolbarMarkup = html.match(/<div class="viewer-toolbar">(?<body>[\s\S]+?)\n    <\/div>/)?.groups?.body ?? '';
 
-  assert.match(html, /id="fullscreenScaleRange"/);
-  assert.match(html, /id="fullscreenOffsetRange"/);
+  assert.match(controlsMarkup, /id="fullscreenScaleRange"/);
+  assert.match(controlsMarkup, /id="fullscreenOffsetRange"/);
+  assert.doesNotMatch(viewerToolbarMarkup, /id="fullscreenScaleRange"/);
+  assert.doesNotMatch(viewerToolbarMarkup, /id="fullscreenOffsetRange"/);
   assert.match(html, /--fullscreen-user-scale/);
   assert.match(html, /--fullscreen-offset-y/);
   assert.match(html, /function applyFullscreenAdjustments/);

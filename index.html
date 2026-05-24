@@ -741,12 +741,14 @@ input[type="range"] {
   right: calc(env(safe-area-inset-right, 0px) + 18px);
   bottom: calc(env(safe-area-inset-bottom, 0px) + 18px);
   z-index: 3;
-  display: grid;
+  display: flex;
+  align-items: center;
   gap: 10px;
-  width: min(360px, calc(100vw - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px) - 36px));
+  flex-wrap: wrap;
+  max-width: min(360px, calc(100vw - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px) - 36px));
   padding: 8px;
   border: 1px solid rgba(255, 255, 255, 0.24);
-  border-radius: 22px;
+  border-radius: 999px;
   background:
     linear-gradient(135deg, rgba(255, 255, 255, 0.22), rgba(255, 255, 255, 0.07)),
     rgba(14, 18, 32, 0.36);
@@ -756,32 +758,6 @@ input[type="range"] {
     0 22px 64px rgba(0, 0, 0, 0.34);
   backdrop-filter: blur(24px) saturate(1.65);
   -webkit-backdrop-filter: blur(24px) saturate(1.65);
-}
-
-.viewer-adjustments {
-  display: grid;
-  gap: 8px;
-  min-width: 0;
-  padding: 4px 6px 0;
-}
-
-.viewer-range-field {
-  display: grid;
-  gap: 5px;
-  color: rgba(244, 247, 255, 0.74);
-  font-size: 0.78rem;
-}
-
-.viewer-range-field > span {
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
-}
-
-.viewer-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
 }
 
 .toolbar-button {
@@ -910,10 +886,6 @@ input[type="range"] {
   .viewer-toolbar {
     opacity: 0.86;
   }
-
-  .viewer-adjustments {
-    grid-template-columns: 1fr 1fr;
-  }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -980,6 +952,16 @@ input[type="range"] {
           <span>傾き感度 <output id="tiltValue" for="tiltRange">72%</output></span>
           <input id="tiltRange" type="range" min="0" max="100" value="72" />
         </label>
+
+        <label class="field range-field">
+          <span>拡大率 <output id="fullscreenScaleValue" for="fullscreenScaleRange">100%</output></span>
+          <input id="fullscreenScaleRange" type="range" min="90" max="140" value="100" />
+        </label>
+
+        <label class="field range-field">
+          <span>上下 <output id="fullscreenOffsetValue" for="fullscreenOffsetRange">0px</output></span>
+          <input id="fullscreenOffsetRange" type="range" min="-160" max="160" value="0" />
+        </label>
       </div>
 
       <div class="actions">
@@ -1006,20 +988,8 @@ input[type="range"] {
   <div id="viewer" class="viewer" hidden aria-hidden="true">
     <div class="viewer-glow" aria-hidden="true"></div>
     <div class="viewer-toolbar">
-      <div class="viewer-adjustments" aria-label="全画面表示調整">
-        <label class="viewer-range-field">
-          <span>拡大率 <output id="fullscreenScaleValue" for="fullscreenScaleRange">100%</output></span>
-          <input id="fullscreenScaleRange" type="range" min="90" max="140" value="100" />
-        </label>
-        <label class="viewer-range-field">
-          <span>上下 <output id="fullscreenOffsetValue" for="fullscreenOffsetRange">0px</output></span>
-          <input id="fullscreenOffsetRange" type="range" min="-160" max="160" value="0" />
-        </label>
-      </div>
-      <div class="viewer-actions">
-        <button id="exitButton" class="toolbar-button" type="button">閉じる</button>
-        <button id="recalibrateButton" class="toolbar-button" type="button">角度リセット</button>
-      </div>
+      <button id="exitButton" class="toolbar-button" type="button">閉じる</button>
+      <button id="recalibrateButton" class="toolbar-button" type="button">角度リセット</button>
       <span id="liveMode" class="visually-hidden" aria-live="polite">待機中</span>
     </div>
 
